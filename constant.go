@@ -21,4 +21,8 @@ var (
 		FeeAmountMedium: 60,
 		FeeAmountHigh:   200,
 	}
+	MIN_TICK          int64 = -887272
+	MAX_TICK          int64 = -MIN_TICK
+	MIN_SQRT_RATIO          = decimal.NewFromInt(4295128739)
+	MAX_SQRT_RATIO, _       = decimal.NewFromString("1461446703485210103287273052203988822378723970342")
 )

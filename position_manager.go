@@ -65,6 +65,12 @@ type PositionManager struct {
 	positions map[string]*Position
 }
 
+func NewPositionManager() *PositionManager {
+	return &PositionManager{
+		positions: map[string]*Position{},
+	}
+}
+
 func (pm *PositionManager) Set(key string, position *Position) {
 	pm.positions[key] = position
 }

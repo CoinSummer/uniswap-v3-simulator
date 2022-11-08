@@ -70,3 +70,7 @@ func (t *Tick) Cross(
 
 type TickManager struct {
 }
+
+func NewTickManager() *TickManager {
+	return &TickManager{}
+}
