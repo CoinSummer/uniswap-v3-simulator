@@ -98,13 +98,20 @@ func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
 }
 func NewCorePoolFromConfig(config PoolConfig) *CorePool {
 	return &CorePool{
-		Token0:              config.Token0,
-		Token1:              config.Token1,
-		Fee:                 config.Fee,
-		TickSpacing:         config.TickSpacing,
-		MaxLiquidityPerTick: TickSpacingToMaxLiquidityPerTick(config.TickSpacing),
-		TickManager:         NewTickManager(),
-		PositionManager:     NewPositionManager(),
+		Token0:               config.Token0,
+		Token1:               config.Token1,
+		Fee:                  config.Fee,
+		TickSpacing:          config.TickSpacing,
+		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(config.TickSpacing),
+		Token0Balance:        decimal.Zero,
+		Token1Balance:        decimal.Zero,
+		SqrtPriceX96:         decimal.Zero,
+		Liquidity:            decimal.Zero,
+		TickCurrent:          0,
+		FeeGrowthGlobal0X128: decimal.Zero,
+		FeeGrowthGlobal1X128: decimal.Zero,
+		TickManager:          NewTickManager(),
+		PositionManager:      NewPositionManager(),
 	}
 }
 func (p *CorePool) Initialize(sqrtPriceX96 decimal.Decimal) error {

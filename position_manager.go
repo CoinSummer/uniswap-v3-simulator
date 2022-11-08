@@ -94,7 +94,7 @@ func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int64, ti
 }
 func (pm *PositionManager) CollectPosition(owner string, tickLower int64, tickUpper int64, amount0Requested, amount1Requested decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	if amount0Requested.LessThan(decimal.Zero) || amount1Requested.LessThan(decimal.Zero) {
-		return decimal.Decimal{}, decimal.Decimal{}, errors.New("amounts requested should be positive")
+		return decimal.Zero, decimal.Zero, errors.New("amounts requested should be positive")
 	}
 	key := GetPositionKey(owner, tickLower, tickUpper)
 	if v, ok := pm.positions[key]; ok {
@@ -119,7 +119,7 @@ func (pm *PositionManager) CollectPosition(owner string, tickLower int64, tickUp
 		}
 		return amount0, amount1, nil
 	} else {
-		return decimal.Decimal{}, decimal.Decimal{}, nil
+		return decimal.Zero, decimal.Zero, nil
 	}
 
 }
