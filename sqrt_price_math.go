@@ -55,14 +55,6 @@ func GetAmount1DeltaWithRoundUp(
 		sqrtRatioAX96 = sqrtRatioBX96
 		sqrtRatioBX96 = sqrtRatioAX96
 	}
-	numerator1_bi := liquidity.BigInt()
-	numerator1 := decimal.NewFromBigInt(numerator1_bi.Lsh(numerator1_bi, 96), 0)
-	numerator2 := sqrtRatioBX96.Sub(sqrtRatioAX96)
-
-	tmp1, err := MulDivRoundingUp(numerator1, numerator2, sqrtRatioBX96)
-	if err != nil {
-		return decimal.Zero, err
-	}
 	tmp2, err := MulDivRoundingUp(liquidity, sqrtRatioBX96.Sub(sqrtRatioAX96), Q96)
 	if err != nil {
 		return decimal.Zero, err

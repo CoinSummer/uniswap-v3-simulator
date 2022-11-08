@@ -24,7 +24,7 @@ type Snapshot struct {
 	Token1Balance        decimal.Decimal
 	SqrtPriceX96         decimal.Decimal
 	Liquidity            decimal.Decimal
-	TickCurrent          int64
+	TickCurrent          int
 	FeeGrowthGlobal0X128 decimal.Decimal
 	FeeGrowthGlobal1X128 decimal.Decimal
 	TickManager          *TickManager
@@ -35,14 +35,14 @@ type Snapshot struct {
 // pool config
 type PoolConfig struct {
 	Id          string
-	TickSpacing int64
+	TickSpacing int
 	Token0      string
 	Token1      string
 	Fee         FeeAmount
 }
 
 func NewPoolConfig(
-	TickSpacing int64,
+	TickSpacing int,
 	Token0 string,
 	Token1 string,
 	Fee FeeAmount,
@@ -65,13 +65,13 @@ type CorePool struct {
 	Token0               string
 	Token1               string
 	Fee                  FeeAmount
-	TickSpacing          int64
+	TickSpacing          int
 	MaxLiquidityPerTick  decimal.Decimal
 	Token0Balance        decimal.Decimal
 	Token1Balance        decimal.Decimal
 	SqrtPriceX96         decimal.Decimal
 	Liquidity            decimal.Decimal
-	TickCurrent          int64
+	TickCurrent          int
 	FeeGrowthGlobal0X128 decimal.Decimal
 	FeeGrowthGlobal1X128 decimal.Decimal
 	TickManager          *TickManager
@@ -127,7 +127,7 @@ func (p *CorePool) Initialize(sqrtPriceX96 decimal.Decimal) error {
 	return nil
 }
 
-func (p *CorePool) Mint(recipient string, tickLower, tickUpper int64, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+func (p *CorePool) Mint(recipient string, tickLower, tickUpper int, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	if !amount.GreaterThan(decimal.Zero) {
 		return decimal.Zero, decimal.Zero, errors.New("Mint amount should greater than 0")
 	}
@@ -139,7 +139,7 @@ func (p *CorePool) Mint(recipient string, tickLower, tickUpper int64, amount dec
 	return amount0, amount1, nil
 }
 
-func (p *CorePool) checkTicks(tickLower, tickUpper int64) error {
+func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
 	if !(tickLower < tickUpper) {
 		return errors.New("tickLower should lower than tickUpper")
 	}
@@ -151,7 +151,7 @@ func (p *CorePool) checkTicks(tickLower, tickUpper int64) error {
 	}
 }
 
-func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int64, liquidityDelta decimal.Decimal) (*Position, decimal.Decimal, decimal.Decimal, error) {
+func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int, liquidityDelta decimal.Decimal) (*Position, decimal.Decimal, decimal.Decimal, error) {
 	err := p.checkTicks(tickLower, tickUpper)
 	if err != nil {
 		return nil, decimal.Zero, decimal.Zero, err
@@ -222,8 +222,13 @@ func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int64, liqu
 	return position, amount0, amount1, nil
 }
 
-func (p *CorePool) updatePosition(owner string, lower int64, upper int64, delta decimal.Decimal) (*Position, error) {
+func (p *CorePool) updatePosition(owner string, lower int, upper int, delta decimal.Decimal) (*Position, error) {
+	position := p.PositionManager.GetPositionAndInitIfAbsent(GetPositionKey(owner, lower, upper))
+	flippedLower := false
+	flippedUpper := false
+	if !delta.IsZero() {
 
+	}
 }
 
 type ActionType string

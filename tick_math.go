@@ -8,23 +8,23 @@ import (
 )
 
 var POWERS_OF_2 []struct {
-	i   int64
+	i   int
 	pow decimal.Decimal
 }
 
 func init() {
 	for _, i := range []int{128, 64, 32, 16, 8, 4, 2, 1} {
 		POWERS_OF_2 = append(POWERS_OF_2, struct {
-			i   int64
+			i   int
 			pow decimal.Decimal
 		}{
-			i:   int64(i),
-			pow: decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(i))),
+			i:   int(i),
+			pow: decimal.NewFromInt(2).Pow(decimal.NewFromInt(int(i))),
 		})
 	}
 
 }
-func TickSpacingToMaxLiquidityPerTick(tickSpacing int64) decimal.Decimal {
+func TickSpacingToMaxLiquidityPerTick(tickSpacing int) decimal.Decimal {
 	ts := decimal.NewFromInt(tickSpacing)
 	minTick := decimal.NewFromInt(MIN_TICK).Div(ts).Floor().Mul(ts)
 	maxTick := decimal.NewFromInt(MAX_TICK).Div(ts).Floor().Mul(ts)
@@ -32,7 +32,7 @@ func TickSpacingToMaxLiquidityPerTick(tickSpacing int64) decimal.Decimal {
 	return MaxUint128.Div(numTicks).Floor()
 }
 
-func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int64, error) {
+func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int, error) {
 	if sqrtRatioX96.LessThan(MIN_SQRT_RATIO) || sqrtRatioX96.GreaterThanOrEqual(MAX_SQRT_RATIO) {
 		return 0, errors.New("SQRT_RATIO")
 	}
@@ -95,11 +95,11 @@ func mulShift(val decimal.Decimal, mulBy string) decimal.Decimal {
 	tmp = tmp.Rsh(tmp, 128)
 	return decimal.NewFromBigInt(tmp, 0)
 }
-func GetSqrtRatioAtTick(tick int64) (decimal.Decimal, error) {
+func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 	if tick < MIN_TICK || tick > MAX_TICK {
 		return decimal.Zero, errors.New("TICK")
 	}
-	var absTick int64 = int64(math.Abs(float64(tick)))
+	var absTick int = int(math.Abs(float64(tick)))
 	var ratio decimal.Decimal
 	if absTick&0x1 != 0 {
 		ratio, _ = decimal.NewFromString("0xfffcb933bd6fad37aa2d162d1a594001")
@@ -193,14 +193,14 @@ func GetSqrtRatioAtTick(tick int64) (decimal.Decimal, error) {
 	}
 }
 
-func MostSignificantBit(x decimal.Decimal) (int64, error) {
+func MostSignificantBit(x decimal.Decimal) (int, error) {
 	if !x.GreaterThan(decimal.Zero) {
 		return 0, errors.New("ZERO")
 	}
 	if !x.LessThanOrEqual(MaxUint256) {
 		return 0, errors.New("MAX")
 	}
-	var msb int64 = 0
+	var msb int = 0
 	for _, s := range POWERS_OF_2 {
 		if x.GreaterThanOrEqual(s.pow) {
 			x = x.Div(decimal.NewFromInt(2).Pow(decimal.NewFromInt(s.i))).Floor()

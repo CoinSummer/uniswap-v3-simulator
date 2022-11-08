@@ -76,7 +76,7 @@ func (p *Position) IsEmpty() bool {
 	return p.liquidity.IsZero() && p.tokensOwed0.IsZero() && p.tokensOwed1.IsZero()
 }
 
-func GetPositionKey(owner string, tickLower int64, tickUpper int64) string {
+func GetPositionKey(owner string, tickLower int, tickUpper int) string {
 	return fmt.Sprintf("%s_%d_%d", owner, tickLower, tickUpper)
 }
 
@@ -104,14 +104,14 @@ func (pm *PositionManager) GetPositionAndInitIfAbsent(key string) *Position {
 	pm.Set(key, newP)
 	return newP
 }
-func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int64, tickUpper int64) *Position {
+func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int, tickUpper int) *Position {
 	key := GetPositionKey(owner, tickLower, tickUpper)
 	if v, ok := pm.positions[key]; ok {
 		return v.Clone()
 	}
 	return NewPosition()
 }
-func (pm *PositionManager) CollectPosition(owner string, tickLower int64, tickUpper int64, amount0Requested, amount1Requested decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+func (pm *PositionManager) CollectPosition(owner string, tickLower int, tickUpper int, amount0Requested, amount1Requested decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	if amount0Requested.LessThan(decimal.Zero) || amount1Requested.LessThan(decimal.Zero) {
 		return decimal.Zero, decimal.Zero, errors.New("amounts requested should be positive")
 	}

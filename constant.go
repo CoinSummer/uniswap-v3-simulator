@@ -16,13 +16,13 @@ var (
 
 	MAX_FEE = decimal.NewFromInt(10).Pow(decimal.NewFromInt(6))
 
-	TICK_SPACINGS = map[FeeAmount]int64{
+	TICK_SPACINGS = map[FeeAmount]int{
 		FeeAmountLow:    10,
 		FeeAmountMedium: 60,
 		FeeAmountHigh:   200,
 	}
-	MIN_TICK          int64 = -887272
-	MAX_TICK          int64 = -MIN_TICK
-	MIN_SQRT_RATIO          = decimal.NewFromInt(4295128739)
-	MAX_SQRT_RATIO, _       = decimal.NewFromString("1461446703485210103287273052203988822378723970342")
+	MIN_TICK          int = -887272
+	MAX_TICK          int = -MIN_TICK
+	MIN_SQRT_RATIO        = decimal.NewFromInt(4295128739)
+	MAX_SQRT_RATIO, _     = decimal.NewFromString("1461446703485210103287273052203988822378723970342")
 )
