@@ -127,14 +127,16 @@ func (p *CorePool) Initialize(sqrtPriceX96 decimal.Decimal) error {
 	return nil
 }
 
-func (p *CorePool) Mint(recipient string, tickLower decimal.Decimal, tickUpper decimal.Decimal, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+func (p *CorePool) Mint(recipient string, tickLower, tickUpper int64, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	if !amount.GreaterThan(decimal.Zero) {
 		return decimal.Zero, decimal.Zero, errors.New("Mint amount should greater than 0")
 	}
-	amount0 := decimal.Zero
-	amount1 := decimal.Zero
 
-	//positionStep := p.mod
+	_, amount0, amount1, err := p.modifyPosition(recipient, tickLower, tickUpper, amount)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	return amount0, amount1, nil
 }
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int64) error {
@@ -169,9 +171,55 @@ func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int64, liqu
 	}
 	if !liquidityDelta.IsZero() {
 		if p.TickCurrent < tickLower {
-			//amount0 =
+			tmp1, err := GetSqrtRatioAtTick(tickLower)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			tmp2, err := GetSqrtRatioAtTick(tickUpper)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			amount0, err = GetAmount0Delta(tmp1, tmp2, liquidityDelta)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+		} else if p.TickCurrent < tickUpper {
+			tmp2, err := GetSqrtRatioAtTick(tickUpper)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			amount0, err = GetAmount0Delta(p.SqrtPriceX96, tmp2, liquidityDelta)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			tmp3, err := GetSqrtRatioAtTick(tickLower)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			amount1, err = GetAmount1Delta(tmp3, p.SqrtPriceX96, liquidityDelta)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			p.Liquidity, err = AddDelta(p.Liquidity, liquidityDelta)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+		} else {
+			tmp1, err := GetSqrtRatioAtTick(tickLower)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			tmp2, err := GetSqrtRatioAtTick(tickUpper)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
+			amount1, err = GetAmount1Delta(tmp1, tmp2, liquidityDelta)
+			if err != nil {
+				return nil, decimal.Zero, decimal.Zero, err
+			}
 		}
 	}
+	return position, amount0, amount1, nil
 }
 
 func (p *CorePool) updatePosition(owner string, lower int64, upper int64, delta decimal.Decimal) (*Position, error) {

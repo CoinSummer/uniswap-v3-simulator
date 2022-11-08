@@ -28,3 +28,21 @@ func LiquidityAddDelta(x decimal.Decimal, y decimal.Decimal) (decimal.Decimal, e
 		return x.Add(y), nil
 	}
 }
+func AddDelta(x, y decimal.Decimal) (decimal.Decimal, error) {
+	if x.GreaterThan(MaxUint128) || y.GreaterThanOrEqual(MaxUint128) {
+		return decimal.Zero, OVERFLOW
+	}
+	if y.IsNegative() {
+		negatedY := y.Neg()
+		if !x.GreaterThanOrEqual(negatedY) {
+			return decimal.Zero, UNDERFLOW
+		}
+		return x.Sub(negatedY), nil
+	} else {
+		if !x.Add(y).LessThanOrEqual(MaxUint128) {
+			return decimal.Zero, OVERFLOW
+		}
+		return x.Add(y), nil
+
+	}
+}
