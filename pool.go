@@ -118,8 +118,64 @@ func (p *CorePool) Initialize(sqrtPriceX96 decimal.Decimal) error {
 	if !p.SqrtPriceX96.IsZero() {
 		return errors.New("Already initialized!")
 	}
-	//p.TickCurrent = Get
+	var err error
+	p.TickCurrent, err = GetTickAtSqrtRatio(sqrtPriceX96)
+	if err != nil {
+		return err
+	}
+	p.SqrtPriceX96 = sqrtPriceX96
 	return nil
+}
+
+func (p *CorePool) Mint(recipient string, tickLower decimal.Decimal, tickUpper decimal.Decimal, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+	if !amount.GreaterThan(decimal.Zero) {
+		return decimal.Zero, decimal.Zero, errors.New("Mint amount should greater than 0")
+	}
+	amount0 := decimal.Zero
+	amount1 := decimal.Zero
+
+	//positionStep := p.mod
+}
+
+func (p *CorePool) checkTicks(tickLower, tickUpper int64) error {
+	if !(tickLower < tickUpper) {
+		return errors.New("tickLower should lower than tickUpper")
+	}
+	if !(tickLower >= MIN_TICK) {
+		return errors.New("tickLower should NOT lower than MIN_TICK")
+	}
+	if !(tickUpper <= MAX_TICK) {
+		return errors.New("tickUpper should NOT greater than MAX_TICK")
+	}
+}
+
+func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int64, liquidityDelta decimal.Decimal) (*Position, decimal.Decimal, decimal.Decimal, error) {
+	err := p.checkTicks(tickLower, tickUpper)
+	if err != nil {
+		return nil, decimal.Zero, decimal.Zero, err
+	}
+	amount0 := decimal.Zero
+	amount1 := decimal.Zero
+	positionView := p.PositionManager.GetPositionReadonly(owner, tickLower, tickUpper)
+	if liquidityDelta.IsNegative() {
+		negatedLiquidityDelta := liquidityDelta.Neg()
+		if !positionView.liquidity.GreaterThanOrEqual(negatedLiquidityDelta) {
+			return nil, decimal.Zero, decimal.Zero, errors.New("Liquidity Underflow")
+		}
+	}
+	position, err := p.updatePosition(owner, tickLower, tickUpper, liquidityDelta)
+	if err != nil {
+		return nil, decimal.Zero, decimal.Zero, err
+	}
+	if !liquidityDelta.IsZero() {
+		if p.TickCurrent < tickLower {
+			//amount0 =
+		}
+	}
+}
+
+func (p *CorePool) updatePosition(owner string, lower int64, upper int64, delta decimal.Decimal) (*Position, error) {
+
 }
 
 type ActionType string

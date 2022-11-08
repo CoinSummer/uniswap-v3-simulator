@@ -14,6 +14,25 @@ type Position struct {
 	tokensOwed1              decimal.Decimal
 }
 
+func NewPosition() *Position {
+	return &Position{
+		liquidity:                decimal.Zero,
+		feeGrowthInside0LastX128: decimal.Zero,
+		feeGrowthInside1LastX128: decimal.Zero,
+		tokensOwed0:              decimal.Zero,
+		tokensOwed1:              decimal.Zero,
+	}
+
+}
+func (p *Position) Clone() *Position {
+	return &Position{
+		liquidity:                p.liquidity,
+		feeGrowthInside0LastX128: p.feeGrowthInside0LastX128,
+		feeGrowthInside1LastX128: p.feeGrowthInside1LastX128,
+		tokensOwed0:              p.tokensOwed0,
+		tokensOwed1:              p.tokensOwed1,
+	}
+}
 func (p *Position) Update(
 	liquidityDelta decimal.Decimal,
 	feeGrowthInside0X128 decimal.Decimal,
@@ -88,9 +107,9 @@ func (pm *PositionManager) GetPositionAndInitIfAbsent(key string) *Position {
 func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int64, tickUpper int64) *Position {
 	key := GetPositionKey(owner, tickLower, tickUpper)
 	if v, ok := pm.positions[key]; ok {
-		return v
+		return v.Clone()
 	}
-	return &Position{}
+	return NewPosition()
 }
 func (pm *PositionManager) CollectPosition(owner string, tickLower int64, tickUpper int64, amount0Requested, amount1Requested decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	if amount0Requested.LessThan(decimal.Zero) || amount1Requested.LessThan(decimal.Zero) {
