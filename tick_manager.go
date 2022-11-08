@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/shopspring/decimal"
 	"math"
+	"sort"
 )
 
 type Tick struct {
@@ -84,7 +85,8 @@ func (t *Tick) Cross(
 }
 
 type TickManager struct {
-	ticks map[int]*Tick
+	ticks       map[int]*Tick
+	sortedTicks []*Tick
 }
 
 func NewTickManager() *TickManager {
@@ -143,9 +145,24 @@ func (tm *TickManager) nextInitializedTick(ticks []*Tick, tick int, lte bool) (*
 		return ticks[index+1], nil
 	}
 }
-func (tm *TickManager) GetSortedTicks() []*Tick {
-	// todo sort tick
+
+func (tm *TickManager) SortTicks() {
+	tm.sortedTicks = tm.GetSortedTicks()
 }
+
+func (tm *TickManager) GetSortedTicks() []*Tick {
+	keys := make([]int, 0, len(tm.ticks))
+	for k, _ := range tm.ticks {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var result []*Tick
+	for _, k := range keys {
+		result = append(result, tm.ticks[k])
+	}
+	return result
+}
+
 func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (int, bool, error) {
 	sortedTicks := tm.GetSortedTicks()
 	compressed := int(math.Floor(float64(tick / tickSpacing)))
@@ -177,7 +194,50 @@ func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (
 }
 
 func (tm *TickManager) getFeeGrowthInside(tickLower, tickUpper, tickCurrent int, feeGrowthGlobal0X128, feeGrowthGlobal1X128 decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+	_, lok := tm.ticks[tickLower]
+	_, uok := tm.ticks[tickUpper]
+	if !lok || !uok {
+		return decimal.Zero, decimal.Zero, errors.New("INVALID_TICK")
+	}
+	lower, err := tm.GetTickAndInitIfAbsent(tickLower)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	upper, err := tm.GetTickAndInitIfAbsent(tickUpper)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
 
+	var feeGrowthBelow0X128 decimal.Decimal
+	var feeGrowthBelow1X128 decimal.Decimal
+	if tickCurrent >= tickLower {
+		feeGrowthBelow0X128 = lower.FeeGrowthOutside0X128
+		feeGrowthBelow1X128 = lower.FeeGrowthOutside1X128
+	} else {
+		feeGrowthBelow0X128 = feeGrowthGlobal0X128.Sub(lower.FeeGrowthOutside0X128)
+		feeGrowthBelow1X128 = feeGrowthGlobal1X128.Sub(lower.FeeGrowthOutside1X128)
+	}
+	var feeGrowthAbove0X128 decimal.Decimal
+	var feeGrowthAbove1X128 decimal.Decimal
+	if tickCurrent < tickUpper {
+		feeGrowthAbove0X128 = upper.FeeGrowthOutside0X128
+		feeGrowthAbove1X128 = upper.FeeGrowthOutside1X128
+	} else {
+		feeGrowthAbove0X128 = feeGrowthGlobal0X128.Sub(upper.FeeGrowthOutside0X128)
+		feeGrowthAbove1X128 = feeGrowthGlobal1X128.Sub(upper.FeeGrowthOutside1X128)
+	}
+
+	result1, err := Mod256Sub(feeGrowthGlobal0X128, feeGrowthBelow0X128)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	result1 = result1.Sub(feeGrowthAbove0X128)
+	result2, err := Mod256Sub(feeGrowthGlobal1X128, feeGrowthBelow1X128)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	result2 = result2.Sub(feeGrowthAbove1X128)
+	return result1, result2, nil
 }
 
 func (tm *TickManager) isAtOrAboveLargest(sortedTicks []*Tick, tick int) bool {
