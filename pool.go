@@ -138,6 +138,32 @@ func (p *CorePool) Mint(recipient string, tickLower, tickUpper int, amount decim
 	}
 	return amount0, amount1, nil
 }
+func (p *CorePool) Burn(owner string, tickLower, tickUpper int, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+	position, amount0, amount1, err := p.modifyPosition(owner, tickLower, tickUpper, amount.Neg())
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	amount0 = amount0.Neg()
+	amount1 = amount1.Neg()
+	if amount0.IsPositive() || amount1.IsPositive() {
+		newTokensOwed0 := position.tokensOwed0.Add(amount0)
+		newTokensOwed1 := position.tokensOwed1.Add(amount1)
+		position.UpdateBurn(newTokensOwed0, newTokensOwed1)
+	}
+	return amount0, amount1, nil
+}
+
+func (p *CorePool) Collect(recipient string, tickLower, tickUpper int, amount0Req, amount1Req decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
+	err := p.checkTicks(tickLower, tickUpper)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	return p.PositionManager.CollectPosition(recipient, tickLower, tickUpper, amount0Req, amount1Req)
+}
+
+func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified, sqrtPriceLimitX96 decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+
+}
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
 	if !(tickLower < tickUpper) {
@@ -149,6 +175,7 @@ func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
 	if !(tickUpper <= MAX_TICK) {
 		return errors.New("tickUpper should NOT greater than MAX_TICK")
 	}
+	return nil
 }
 
 func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int, liquidityDelta decimal.Decimal) (*Position, decimal.Decimal, decimal.Decimal, error) {
@@ -227,8 +254,41 @@ func (p *CorePool) updatePosition(owner string, lower int, upper int, delta deci
 	flippedLower := false
 	flippedUpper := false
 	if !delta.IsZero() {
+		tick, err := p.TickManager.GetTickAndInitIfAbsent(lower)
+		if err != nil {
+			return nil, err
+		}
+		flippedLower, err = tick.Update(delta, p.TickCurrent, p.FeeGrowthGlobal0X128, p.FeeGrowthGlobal1X128, false, p.MaxLiquidityPerTick)
+		if err != nil {
+			return nil, err
+		}
 
+		tick, err = p.TickManager.GetTickAndInitIfAbsent(upper)
+		if err != nil {
+			return nil, err
+		}
+		flippedUpper, err = tick.Update(delta, p.TickCurrent, p.FeeGrowthGlobal0X128, p.FeeGrowthGlobal1X128, true, p.MaxLiquidityPerTick)
+		if err != nil {
+			return nil, err
+		}
 	}
+	fi0, fi1, err := p.TickManager.getFeeGrowthInside(lower, upper, p.TickCurrent, p.FeeGrowthGlobal0X128, p.FeeGrowthGlobal1X128)
+	if err != nil {
+		return nil, err
+	}
+	err = position.Update(delta, fi0, fi1)
+	if err != nil {
+		return nil, err
+	}
+	if delta.IsNegative() {
+		if flippedLower {
+			p.TickManager.Clear(lower)
+		}
+		if flippedUpper {
+			p.TickManager.Clear(upper)
+		}
+	}
+	return position, nil
 }
 
 type ActionType string
