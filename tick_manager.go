@@ -149,6 +149,10 @@ func (tm *TickManager) nextInitializedTick(ticks []*Tick, tick int, lte bool) (*
 func (tm *TickManager) SortTicks() {
 	tm.sortedTicks = tm.GetSortedTicks()
 }
+func (tm *TickManager) Clear(tick int) {
+	delete(tm.ticks, tick)
+	tm.SortTicks()
+}
 
 func (tm *TickManager) GetSortedTicks() []*Tick {
 	keys := make([]int, 0, len(tm.ticks))
@@ -164,7 +168,7 @@ func (tm *TickManager) GetSortedTicks() []*Tick {
 }
 
 func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (int, bool, error) {
-	sortedTicks := tm.GetSortedTicks()
+	sortedTicks := tm.sortedTicks
 	compressed := int(math.Floor(float64(tick / tickSpacing)))
 	if lte {
 		wordPos := compressed >> 8
