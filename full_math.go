@@ -5,8 +5,19 @@ import (
 )
 
 func MulDivRoundingUp(a, b, denominator decimal.Decimal) (decimal.Decimal, error) {
-
+	product := a.Mul(b)
+	result := product.Div(denominator).Floor()
+	tmp1 := product.BigInt()
+	tmp1 = tmp1.Rem(tmp1, denominator.BigInt())
+	if decimal.NewFromBigInt(tmp1, 0).IsPositive() {
+		if !result.LessThan(MaxUint256) {
+			return decimal.Zero, OVERFLOW
+		}
+		result = result.Add(decimal.NewFromInt(1))
+	}
+	return result, nil
 }
+
 func Mod256Sub(a, b decimal.Decimal) (decimal.Decimal, error) {
 	if !a.GreaterThanOrEqual(decimal.Zero) || !b.LessThanOrEqual(decimal.Zero) || !a.LessThanOrEqual(MaxUint256) || !b.LessThanOrEqual(MaxUint256) {
 		return decimal.Zero, OVERFLOW

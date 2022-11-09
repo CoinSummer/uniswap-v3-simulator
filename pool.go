@@ -161,8 +161,20 @@ func (p *CorePool) Collect(recipient string, tickLower, tickUpper int, amount0Re
 	return p.PositionManager.CollectPosition(recipient, tickLower, tickUpper, amount0Req, amount1Req)
 }
 
-func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified, sqrtPriceLimitX96 decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified, optionalSqrtPriceLimitX96 *decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+	var sqrtPriceLimitX96 decimal.Decimal
+	if optionalSqrtPriceLimitX96 == nil {
+		if zeroForOne {
+			sqrtPriceLimitX96 = MIN_SQRT_RATIO.Add(decimal.NewFromInt(1))
+		} else {
+			sqrtPriceLimitX96 = MAX_SQRT_RATIO.Sub(decimal.NewFromInt(1))
+		}
+	}
+	if zeroForOne {
 
+	} else {
+
+	}
 }
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
