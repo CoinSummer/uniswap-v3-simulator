@@ -161,7 +161,25 @@ func (p *CorePool) Collect(recipient string, tickLower, tickUpper int, amount0Re
 	return p.PositionManager.CollectPosition(recipient, tickLower, tickUpper, amount0Req, amount1Req)
 }
 
-func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified, optionalSqrtPriceLimitX96 *decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+type swapState struct {
+	amountSpecifiedRemaining decimal.Decimal
+	amountCalculated         decimal.Decimal
+	sqrtPriceX96             decimal.Decimal
+	tick                     int
+	liquidity                decimal.Decimal
+	feeGrowthGlobalX128      decimal.Decimal
+}
+type StepComputations struct {
+	sqrtPriceStartX96 decimal.Decimal
+	tickNext          int
+	initialized       bool
+	sqrtPriceNextX96  decimal.Decimal
+	amountIn          decimal.Decimal
+	amountOut         decimal.Decimal
+	feeAmount         decimal.Decimal
+}
+
+func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, optionalSqrtPriceLimitX96 *decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
 	var sqrtPriceLimitX96 decimal.Decimal
 	if optionalSqrtPriceLimitX96 == nil {
 		if zeroForOne {
@@ -171,10 +189,42 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified, optionalSqrtPric
 		}
 	}
 	if zeroForOne {
+		if !sqrtPriceLimitX96.GreaterThan(MIN_SQRT_RATIO) {
+			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_MIN")
+		}
+		if !sqrtPriceLimitX96.LessThan(p.SqrtPriceX96) {
+			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_CURRENT")
+		}
 
 	} else {
+		if !sqrtPriceLimitX96.LessThan(MAX_SQRT_RATIO) {
+			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_MAX")
+		}
+		if !sqrtPriceLimitX96.GreaterThan(p.SqrtPriceX96) {
+			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_CURRENT")
+		}
+	}
+	exactInput := amountSpecified.GreaterThanOrEqual(decimal.Zero)
+	state := swapState{
+		amountSpecifiedRemaining: amountSpecified,
+		amountCalculated:         decimal.Zero,
+		sqrtPriceX96:             p.SqrtPriceX96,
+		tick:                     p.TickCurrent,
+		liquidity:                p.Liquidity,
+	}
+	if zeroForOne {
+		state.feeGrowthGlobalX128 = p.FeeGrowthGlobal0X128
+	} else {
+		state.feeGrowthGlobalX128 = p.FeeGrowthGlobal1X128
+	}
+	for {
+		// 达到限价或者兑换完成
+		if state.amountSpecifiedRemaining.Equal(decimal.Zero) || state.sqrtPriceX96.Equal(sqrtPriceLimitX96) {
+			break
+		}
 
 	}
+
 }
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
