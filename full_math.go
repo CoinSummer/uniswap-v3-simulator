@@ -6,7 +6,7 @@ import (
 
 func MulDivRoundingUp(a, b, denominator decimal.Decimal) (decimal.Decimal, error) {
 	product := a.Mul(b)
-	result := product.Div(denominator).Floor()
+	result := product.Div(denominator).RoundDown(0)
 	tmp1 := product.BigInt()
 	tmp1 = tmp1.Rem(tmp1, denominator.BigInt())
 	if decimal.NewFromBigInt(tmp1, 0).IsPositive() {

@@ -62,7 +62,7 @@ func GetAmount1DeltaWithRoundUp(
 	if roundUp {
 		return tmp2, nil
 	} else {
-		return liquidity.Mul(sqrtRatioBX96.Sub(sqrtRatioAX96)).Div(Q96).Floor(), nil
+		return liquidity.Mul(sqrtRatioBX96.Sub(sqrtRatioAX96)).Div(Q96).RoundDown(0), nil
 	}
 
 }
@@ -89,7 +89,7 @@ func GetAmount0DeltaWithRoundUp(
 	if roundUp {
 		return tmp2, nil
 	} else {
-		return numerator1.Mul(numerator2).Div(sqrtRatioBX96).Floor().Div(sqrtRatioAX96).Floor(), nil
+		return numerator1.Mul(numerator2).Div(sqrtRatioBX96).RoundDown(0).Div(sqrtRatioAX96).RoundDown(0), nil
 	}
 
 }

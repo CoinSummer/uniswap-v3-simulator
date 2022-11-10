@@ -2,6 +2,8 @@ package uniswap_v3_simulator
 
 import (
 	"errors"
+	"github.com/daoleno/uniswapv3-sdk/constants"
+	"github.com/daoleno/uniswapv3-sdk/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"time"
@@ -222,9 +224,114 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		if state.amountSpecifiedRemaining.Equal(decimal.Zero) || state.sqrtPriceX96.Equal(sqrtPriceLimitX96) {
 			break
 		}
+		step := StepComputations{
+			sqrtPriceStartX96: decimal.Zero, tickNext: 0, initialized: false, sqrtPriceNextX96: decimal.Zero, amountIn: decimal.Zero, amountOut: decimal.Zero, feeAmount: decimal.Zero}
+		step.sqrtPriceStartX96 = state.sqrtPriceX96
+		tickNext, initialized, err := p.TickManager.GetNextInitializedTick(state.tick, p.TickSpacing, zeroForOne)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, decimal.Zero, err
+		}
+		step.tickNext = tickNext
+		step.initialized = initialized
+		if step.tickNext < MIN_TICK {
+			step.tickNext = MIN_TICK
+		} else if step.tickNext > MAX_TICK {
+			step.tickNext = MAX_TICK
+		}
+		step.sqrtPriceNextX96, err = GetSqrtRatioAtTick(step.tickNext)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, decimal.Zero, err
+		}
+		var sqrtRatioTargetX96 decimal.Decimal
+		var b1 bool
+		if zeroForOne {
+			b1 = step.sqrtPriceNextX96.LessThan(sqrtPriceLimitX96)
+		} else {
+			b1 = step.sqrtPriceNextX96.GreaterThan(sqrtPriceLimitX96)
+		}
+		if b1 {
+			sqrtRatioTargetX96 = sqrtPriceLimitX96
+		} else {
+			sqrtRatioTargetX96 = step.sqrtPriceNextX96
+		}
+		_sqrtPriceX96, _amountIn, _amountOut, _feeAmount, err := utils.ComputeSwapStep(state.sqrtPriceX96.BigInt(), sqrtRatioTargetX96.BigInt(), state.liquidity.BigInt(), state.amountSpecifiedRemaining.BigInt(), constants.FeeAmount(p.Fee))
+		state.sqrtPriceX96 = decimal.NewFromBigInt(_sqrtPriceX96, 0)
+		step.amountIn = decimal.NewFromBigInt(_amountIn, 0)
+		step.amountOut = decimal.NewFromBigInt(_amountOut, 0)
+		step.feeAmount = decimal.NewFromBigInt(_feeAmount, 0)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, decimal.Zero, err
+		}
+		if exactInput {
+			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Sub(step.amountIn.Add(step.feeAmount))
+			state.amountCalculated = state.amountCalculated.Sub(step.amountOut)
+		} else {
+			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Add(step.amountOut)
+			state.amountCalculated = state.amountCalculated.Add(step.amountIn.Add(step.feeAmount))
+		}
+		if state.liquidity.IsPositive() {
+			state.feeGrowthGlobalX128 = state.feeGrowthGlobalX128.Add(step.feeAmount.Mul(Q128).Div(state.liquidity).RoundDown(0))
+		}
+		if state.sqrtPriceX96.Equal(step.sqrtPriceNextX96) {
+			if step.initialized {
+				nextTick, err := p.TickManager.GetTickAndInitIfAbsent(step.tickNext)
+				if err != nil {
+					return decimal.Zero, decimal.Zero, decimal.Zero, err
+				}
+				var liquidityNet decimal.Decimal
+				if isStatic {
+					liquidityNet = nextTick.LiquidityNet
+				} else {
+					if zeroForOne {
+						liquidityNet = nextTick.Cross(state.feeGrowthGlobalX128, p.FeeGrowthGlobal1X128)
+					} else {
+						liquidityNet = nextTick.Cross(p.FeeGrowthGlobal0X128, state.feeGrowthGlobalX128)
+					}
+				}
+				if zeroForOne {
+					liquidityNet = liquidityNet.Neg()
+				}
+				state.liquidity, err = AddDelta(state.liquidity, liquidityNet)
+				if err != nil {
+					return decimal.Zero, decimal.Zero, decimal.Zero, err
+				}
 
+			}
+			if zeroForOne {
+				state.tick = step.tickNext - 1
+			} else {
+				state.tick = step.tickNext
+			}
+		} else if !state.sqrtPriceX96.Equal(step.sqrtPriceStartX96) {
+			state.tick, err = GetTickAtSqrtRatio(state.sqrtPriceX96)
+			if err != nil {
+				return decimal.Zero, decimal.Zero, decimal.Zero, err
+			}
+		}
 	}
-
+	if !isStatic {
+		p.SqrtPriceX96 = state.sqrtPriceX96
+		if state.tick != p.TickCurrent {
+			p.TickCurrent = state.tick
+		}
+		if !state.liquidity.Equal(p.Liquidity) {
+			p.Liquidity = state.liquidity
+		}
+		if zeroForOne {
+			p.FeeGrowthGlobal0X128 = state.feeGrowthGlobalX128
+		} else {
+			p.FeeGrowthGlobal1X128 = state.feeGrowthGlobalX128
+		}
+	}
+	var amount0, amount1 decimal.Decimal
+	if zeroForOne == exactInput {
+		amount0 = amountSpecified.Sub(state.amountSpecifiedRemaining)
+		amount1 = state.amountCalculated
+	} else {
+		amount1 = amountSpecified.Sub(state.amountSpecifiedRemaining)
+		amount0 = state.amountCalculated
+	}
+	return amount0, amount1, state.sqrtPriceX96, nil
 }
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {

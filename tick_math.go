@@ -26,10 +26,10 @@ func init() {
 }
 func TickSpacingToMaxLiquidityPerTick(tickSpacing int) decimal.Decimal {
 	ts := decimal.NewFromInt(tickSpacing)
-	minTick := decimal.NewFromInt(MIN_TICK).Div(ts).Floor().Mul(ts)
-	maxTick := decimal.NewFromInt(MAX_TICK).Div(ts).Floor().Mul(ts)
-	numTicks := maxTick.Sub(minTick).Div(ts).Floor().Add(decimal.NewFromInt(1))
-	return MaxUint128.Div(numTicks).Floor()
+	minTick := decimal.NewFromInt(MIN_TICK).Div(ts).RoundDown(0).Mul(ts)
+	maxTick := decimal.NewFromInt(MAX_TICK).Div(ts).RoundDown(0).Mul(ts)
+	numTicks := maxTick.Sub(minTick).Div(ts).RoundDown(0).Add(decimal.NewFromInt(1))
+	return MaxUint128.Div(numTicks).RoundDown(0)
 }
 
 func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int, error) {
@@ -182,14 +182,14 @@ func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 		ratio = mulShift(ratio, "0x48a170391f7dc42444e8fa2")
 	}
 	if tick > 0 {
-		ratio = MaxUint256.Div(ratio).Floor()
+		ratio = MaxUint256.Div(ratio).RoundDown(0)
 	}
 	_, remainder := ratio.QuoRem(Q32, 0)
-	remainder = remainder.Floor()
+	remainder = remainder.RoundDown(0)
 	if remainder.GreaterThan(decimal.Zero) {
-		return ratio.Div(Q32).Add(decimal.NewFromInt(1)).Floor(), nil
+		return ratio.Div(Q32).Add(decimal.NewFromInt(1)).RoundDown(0), nil
 	} else {
-		return ratio.Div(Q32).Floor(), nil
+		return ratio.Div(Q32).RoundDown(0), nil
 	}
 }
 
@@ -203,7 +203,7 @@ func MostSignificantBit(x decimal.Decimal) (int, error) {
 	var msb int = 0
 	for _, s := range POWERS_OF_2 {
 		if x.GreaterThanOrEqual(s.pow) {
-			x = x.Div(decimal.NewFromInt(2).Pow(decimal.NewFromInt(s.i))).Floor()
+			x = x.Div(decimal.NewFromInt(2).Pow(decimal.NewFromInt(s.i))).RoundDown(0)
 			msb += s.i
 		}
 	}
