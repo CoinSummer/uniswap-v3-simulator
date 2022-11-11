@@ -69,6 +69,8 @@ type CorePool struct {
 	Fee                  FeeAmount
 	TickSpacing          int
 	MaxLiquidityPerTick  decimal.Decimal
+	CurrentBlockNum      int64
+	DeployBlockNum       int64
 	Token0Balance        decimal.Decimal
 	Token1Balance        decimal.Decimal
 	SqrtPriceX96         decimal.Decimal
@@ -98,6 +100,7 @@ func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
 		PositionManager:      snapshot.PositionManager,
 	}
 }
+
 func NewCorePoolFromConfig(config PoolConfig) *CorePool {
 	return &CorePool{
 		Token0:               config.Token0,
@@ -116,6 +119,7 @@ func NewCorePoolFromConfig(config PoolConfig) *CorePool {
 		PositionManager:      NewPositionManager(),
 	}
 }
+
 func (p *CorePool) Initialize(sqrtPriceX96 decimal.Decimal) error {
 	if !p.SqrtPriceX96.IsZero() {
 		return errors.New("Already initialized!")
@@ -126,6 +130,16 @@ func (p *CorePool) Initialize(sqrtPriceX96 decimal.Decimal) error {
 		return err
 	}
 	p.SqrtPriceX96 = sqrtPriceX96
+	return nil
+}
+
+// 从链上同步数据， 并保存snapshot到数据库(覆盖上一个snapshot)
+// 从数据库加载snapshot， 然后检查和最新区块的差距, 并同步到最新区块
+// 如果数据库中没有snapshot，则从initialize开始同步所有event
+func (p *CorePool) Load() error {
+	if p.DeployBlockNum == 0 {
+		// todo etherscan api 获取 部署blockNum
+	}
 	return nil
 }
 

@@ -18,16 +18,16 @@ func init() {
 			i   int
 			pow decimal.Decimal
 		}{
-			i:   int(i),
-			pow: decimal.NewFromInt(2).Pow(decimal.NewFromInt(int(i))),
+			i:   i,
+			pow: decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(i))),
 		})
 	}
 
 }
 func TickSpacingToMaxLiquidityPerTick(tickSpacing int) decimal.Decimal {
-	ts := decimal.NewFromInt(tickSpacing)
-	minTick := decimal.NewFromInt(MIN_TICK).Div(ts).RoundDown(0).Mul(ts)
-	maxTick := decimal.NewFromInt(MAX_TICK).Div(ts).RoundDown(0).Mul(ts)
+	ts := decimal.NewFromInt(int64(tickSpacing))
+	minTick := decimal.NewFromInt(int64(MIN_TICK)).Div(ts).RoundDown(0).Mul(ts)
+	maxTick := decimal.NewFromInt(int64(MAX_TICK)).Div(ts).RoundDown(0).Mul(ts)
 	numTicks := maxTick.Sub(minTick).Div(ts).RoundDown(0).Add(decimal.NewFromInt(1))
 	return MaxUint128.Div(numTicks).RoundDown(0)
 }
@@ -49,7 +49,7 @@ func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int, error) {
 		b = b.Lsh(b, uint(127-msb))
 	}
 	r = decimal.NewFromBigInt(b, 0)
-	log_2 := big.NewInt(msb - 128)
+	log_2 := big.NewInt(int64(msb - 128))
 	log_2 = log_2.Lsh(log_2, 64)
 	log2 := decimal.NewFromBigInt(log_2, 0)
 	for i := 0; i < 14; i++ {
@@ -76,16 +76,16 @@ func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int, error) {
 	tickHigh_bi = tickLow_bi.Rsh(tickHigh_bi, 128)
 	tickHigh := decimal.NewFromBigInt(tickHigh_bi, 0)
 	if tickLow.Equal(tickHigh) {
-		return tickLow.IntPart(), nil
+		return int(tickLow.IntPart()), nil
 	} else {
-		sqrt, err := GetSqrtRatioAtTick(tickHigh.IntPart())
+		sqrt, err := GetSqrtRatioAtTick(int(tickHigh.IntPart()))
 		if err != nil {
 			return 0, err
 		}
 		if sqrt.LessThanOrEqual(sqrtRatioX96) {
-			return tickHigh.IntPart(), nil
+			return int(tickHigh.IntPart()), nil
 		} else {
-			return tickLow.IntPart(), nil
+			return int(tickLow.IntPart()), nil
 		}
 	}
 }
@@ -203,7 +203,7 @@ func MostSignificantBit(x decimal.Decimal) (int, error) {
 	var msb int = 0
 	for _, s := range POWERS_OF_2 {
 		if x.GreaterThanOrEqual(s.pow) {
-			x = x.Div(decimal.NewFromInt(2).Pow(decimal.NewFromInt(s.i))).RoundDown(0)
+			x = x.Div(decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(s.i)))).RoundDown(0)
 			msb += s.i
 		}
 	}
