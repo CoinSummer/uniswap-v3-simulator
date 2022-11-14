@@ -106,6 +106,7 @@ func (tm *TickManager) GetTickAndInitIfAbsent(index int) (*Tick, error) {
 			return nil, err
 		}
 		tm.Ticks[tick.TickIndex] = tick
+		tm.SortTicks()
 		return tick, nil
 	}
 }

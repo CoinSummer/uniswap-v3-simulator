@@ -1,6 +1,8 @@
 package uniswap_v3_simulator
 
 import (
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
@@ -141,4 +143,34 @@ func (pm *PositionManager) CollectPosition(owner string, tickLower int, tickUppe
 		return decimal.Zero, decimal.Zero, nil
 	}
 
+}
+func (nc *PositionManager) GormDataType() string {
+	return "LONGTEXT"
+}
+
+func (j *PositionManager) Scan(value interface{}) error {
+	var err error
+	switch v := value.(type) {
+	case []byte:
+		{
+			err = json.Unmarshal(v, j)
+		}
+	case string:
+		{
+			err = json.Unmarshal([]byte(v), j)
+		}
+	case nil:
+		return nil
+	default:
+		err = errors.New(fmt.Sprint("Failed to unmarshal TickManager value:", value))
+	}
+	return err
+}
+
+func (j PositionManager) Value() (driver.Value, error) {
+	bs, err := json.Marshal(j)
+	if err != nil {
+		return nil, err
+	}
+	return string(bs), nil
 }

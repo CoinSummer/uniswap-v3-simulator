@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/glebarez/sqlite"
-	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	blockingester "gitlab.com/CoinSummer/Base/block-ingester"
 	"gorm.io/gorm"
@@ -70,6 +69,7 @@ func NewPoolManager(startBlock int64, dbFile string, wss string, rpcs []string) 
 	pm.SwapID = a.Events["Swap"].ID
 	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", db, wssClient, big.NewInt(startBlock), true, true, pm, context.Background())
 	pm.ingestor = ingester
+	db.AutoMigrate(&CorePool{})
 	return pm
 }
 
@@ -112,7 +112,7 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 		return nil, err
 	}
 
-	pool := NewCorePoolFromConfig(PoolConfig{
+	pool := NewCorePoolFromConfig(log.Address.String(), PoolConfig{
 		TickSpacing: tickSpacing.Int64(),
 		Token0:      token0,
 		Token1:      token1,
@@ -122,13 +122,13 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 	if err != nil {
 		return nil, err
 	}
-	pm.pools[log.Address] = pool
 	return pool, nil
 }
 
 // todo 应该先从磁盘加载snapshot, 然后以snapshot里的blockNum作为ingester的开始block
 // snapshot定时持久化， 比如每10min持久化一次
 func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
+	logrus.Infof("sync to block: %s", block.Header.Number)
 	// 使用 block ingestor 的 transaction机制， 每个区块落盘一次
 	// position和tick分表存放
 	blockHash := block.Header.Hash()
@@ -151,12 +151,13 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 				logrus.Error(err)
 			}
 			dirtyPool[pool.PoolAddress] = pool
-			return err
+			pm.pools[log.Address] = pool
 		} else if topic0 == pm.MintID {
 			if pool, ok := pm.pools[log.Address]; !ok {
 				logrus.Warnf("mint before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
+				dirtyPool[pool.PoolAddress] = pool
 				mint, err := parseUniv3MintEvent(&log)
 				if err != nil {
 					logrus.Warnf("failed parse mint event, tx: %s  pool: %s", log.TxHash, log.Address)
@@ -173,6 +174,7 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 				logrus.Warnf("burn before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
+				dirtyPool[pool.PoolAddress] = pool
 				burn, err := parseUniv3BurnEvent(&log)
 				if err != nil {
 					logrus.Warnf("failed parse burn event, tx: %s  pool: %s", log.TxHash, log.Address)
@@ -189,19 +191,20 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 				logrus.Warnf("swap before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
+				dirtyPool[pool.PoolAddress] = pool
 				swap, err := parseUniv3SwapEvent(&log)
 				if err != nil {
 					logrus.Warnf("failed parse swap event, tx: %s  pool: %s", log.TxHash, log.Address)
 					continue
 				}
-				var amount decimal.Decimal
-				if swap.Amount0.IsPositive() {
-					amount
-				}
-				_, _, err = pool.handleSwap(swap.Amount0.IsPositive(), swap, swap.TickUpper, swap.Amount)
+				amountSpecified, sqrtPriceX96, err := pool.ResolveInputFromSwapResultEvent(swap)
 				if err != nil {
-					logrus.Errorf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
-					return err
+					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
+				}
+
+				_, _, _, err = pool.handleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
+				if err != nil {
+					logrus.Fatalf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
 				}
 			}
 		}
@@ -211,8 +214,10 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 		for _, pool := range dirtyPool {
 			err := pool.Flush(tx)
 			if err != nil {
+				logrus.Errorf("failed flush pool %s", err)
 				return err
 			}
+			logrus.Infof("flush pool: %s", pool.PoolAddress)
 		}
 		return nil
 	})

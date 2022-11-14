@@ -99,8 +99,9 @@ func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
 	}
 }
 
-func NewCorePoolFromConfig(config PoolConfig) *CorePool {
+func NewCorePoolFromConfig(addr string, config PoolConfig) *CorePool {
 	return &CorePool{
+		PoolAddress:          addr,
 		Token0:               config.Token0.String(),
 		Token1:               config.Token1.String(),
 		Fee:                  config.Fee,
