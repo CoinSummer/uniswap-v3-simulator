@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/daoleno/uniswapv3-sdk/utils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/shopspring/decimal"
 	"time"
 )
@@ -35,17 +36,16 @@ type Snapshot struct {
 
 // pool config
 type PoolConfig struct {
-	Id          string
-	TickSpacing int
-	Token0      string
-	Token1      string
+	TickSpacing int64
+	Token0      common.Address
+	Token1      common.Address
 	Fee         FeeAmount
 }
 
 func NewPoolConfig(
-	TickSpacing int,
-	Token0 string,
-	Token1 string,
+	TickSpacing int64,
+	Token0 common.Address,
+	Token1 common.Address,
 	Fee FeeAmount,
 ) *PoolConfig {
 	return &PoolConfig{
@@ -78,11 +78,11 @@ type CorePool struct {
 
 func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
 	return &CorePool{
-		Token0:               snapshot.PoolConfig.Token0,
-		Token1:               snapshot.PoolConfig.Token1,
+		Token0:               snapshot.PoolConfig.Token0.String(),
+		Token1:               snapshot.PoolConfig.Token1.String(),
 		Fee:                  snapshot.PoolConfig.Fee,
-		TickSpacing:          snapshot.PoolConfig.TickSpacing,
-		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(snapshot.PoolConfig.TickSpacing),
+		TickSpacing:          int(snapshot.PoolConfig.TickSpacing),
+		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(int(snapshot.PoolConfig.TickSpacing)),
 		Token0Balance:        snapshot.Token0Balance,
 		Token1Balance:        snapshot.Token1Balance,
 		SqrtPriceX96:         snapshot.SqrtPriceX96,
@@ -97,11 +97,11 @@ func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
 
 func NewCorePoolFromConfig(config PoolConfig) *CorePool {
 	return &CorePool{
-		Token0:               config.Token0,
-		Token1:               config.Token1,
+		Token0:               config.Token0.String(),
+		Token1:               config.Token1.String(),
 		Fee:                  config.Fee,
-		TickSpacing:          config.TickSpacing,
-		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(config.TickSpacing),
+		TickSpacing:          int(config.TickSpacing),
+		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(int(config.TickSpacing)),
 		Token0Balance:        decimal.Zero,
 		Token1Balance:        decimal.Zero,
 		SqrtPriceX96:         decimal.Zero,

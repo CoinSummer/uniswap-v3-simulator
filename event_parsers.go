@@ -9,6 +9,12 @@ import (
 	"math/big"
 )
 
+type UniV3InitializeEvent struct {
+	RawEvent     *types.Log      `json:"raw_event"`
+	SqrtPriceX96 decimal.Decimal `json:"sqrt_price_x96"`
+	tick         int             `json:"tick"`
+	Removed      bool            `json:"removed"`
+}
 type UniV3SwapEvent struct {
 	RawEvent  *types.Log      `json:"raw_event"`
 	Sender    string          `json:"sender"`
@@ -107,6 +113,19 @@ func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
 	}
 	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
 		return nil, fmt.Errorf("burn amount0 and amount1 == 0")
+	}
+	return parsed, nil
+}
+func parseUniv3InitializeEvent(log *types.Log) (*UniV3InitializeEvent, error) {
+	event := log
+	data := event.Data
+	if len(event.Topics) != 1 {
+		return nil, fmt.Errorf("topic not match,expect %d, got %d", 4, len(event.Topics))
+	}
+	parsed := &UniV3InitializeEvent{
+		RawEvent:     log,
+		SqrtPriceX96: decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[:32]), 0),
+		tick:         int(big.NewInt(0).SetBytes(data[32:64]).Int64()),
 	}
 	return parsed, nil
 }
