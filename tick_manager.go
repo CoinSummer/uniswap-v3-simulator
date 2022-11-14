@@ -24,10 +24,10 @@ func NewTick(index int) (*Tick, error) {
 	} else {
 		return &Tick{
 			TickIndex:             index,
-			LiquidityGross:        decimal.Zero,
-			LiquidityNet:          decimal.Zero,
-			FeeGrowthOutside0X128: decimal.Zero,
-			FeeGrowthOutside1X128: decimal.Zero,
+			LiquidityGross:        ZERO,
+			LiquidityNet:          ZERO,
+			FeeGrowthOutside0X128: ZERO,
+			FeeGrowthOutside1X128: ZERO,
 		}, nil
 	}
 }
@@ -205,15 +205,15 @@ func (tm *TickManager) getFeeGrowthInside(tickLower, tickUpper, tickCurrent int,
 	_, lok := tm.Ticks[tickLower]
 	_, uok := tm.Ticks[tickUpper]
 	if !lok || !uok {
-		return decimal.Zero, decimal.Zero, errors.New("INVALID_TICK")
+		return ZERO, ZERO, errors.New("INVALID_TICK")
 	}
 	lower, err := tm.GetTickAndInitIfAbsent(tickLower)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 	upper, err := tm.GetTickAndInitIfAbsent(tickUpper)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 
 	var feeGrowthBelow0X128 decimal.Decimal
@@ -237,12 +237,12 @@ func (tm *TickManager) getFeeGrowthInside(tickLower, tickUpper, tickCurrent int,
 
 	result1, err := Mod256Sub(feeGrowthGlobal0X128, feeGrowthBelow0X128)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 	result1 = result1.Sub(feeGrowthAbove0X128)
 	result2, err := Mod256Sub(feeGrowthGlobal1X128, feeGrowthBelow1X128)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 	result2 = result2.Sub(feeGrowthAbove1X128)
 	return result1, result2, nil

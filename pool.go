@@ -107,13 +107,13 @@ func NewCorePoolFromConfig(addr string, config PoolConfig) *CorePool {
 		Fee:                  config.Fee,
 		TickSpacing:          int(config.TickSpacing),
 		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(int(config.TickSpacing)),
-		Token0Balance:        decimal.Zero,
-		Token1Balance:        decimal.Zero,
-		SqrtPriceX96:         decimal.Zero,
-		Liquidity:            decimal.Zero,
+		Token0Balance:        ZERO,
+		Token1Balance:        ZERO,
+		SqrtPriceX96:         ZERO,
+		Liquidity:            ZERO,
 		TickCurrent:          0,
-		FeeGrowthGlobal0X128: decimal.Zero,
-		FeeGrowthGlobal1X128: decimal.Zero,
+		FeeGrowthGlobal0X128: ZERO,
+		FeeGrowthGlobal1X128: ZERO,
 		TickManager:          NewTickManager(),
 		PositionManager:      NewPositionManager(),
 	}
@@ -143,26 +143,26 @@ func (p *CorePool) Load() error {
 }
 
 func (p *CorePool) Mint(recipient string, tickLower, tickUpper int, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
-	if !amount.GreaterThan(decimal.Zero) {
-		return decimal.Zero, decimal.Zero, errors.New("Mint amount should greater than 0")
+	if !amount.GreaterThan(ZERO) {
+		return ZERO, ZERO, errors.New("Mint amount should greater than 0")
 	}
 
 	_, amount0, amount1, err := p.modifyPosition(recipient, tickLower, tickUpper, amount)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 	return amount0, amount1, nil
 }
 func (p *CorePool) Burn(owner string, tickLower, tickUpper int, amount decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	position, amount0, amount1, err := p.modifyPosition(owner, tickLower, tickUpper, amount.Neg())
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 	amount0 = amount0.Neg()
 	amount1 = amount1.Neg()
 	if amount0.IsPositive() || amount1.IsPositive() {
-		newTokensOwed0 := position.tokensOwed0.Add(amount0)
-		newTokensOwed1 := position.tokensOwed1.Add(amount1)
+		newTokensOwed0 := position.TokensOwed0.Add(amount0)
+		newTokensOwed1 := position.TokensOwed1.Add(amount1)
 		position.UpdateBurn(newTokensOwed0, newTokensOwed1)
 	}
 	return amount0, amount1, nil
@@ -171,7 +171,7 @@ func (p *CorePool) Burn(owner string, tickLower, tickUpper int, amount decimal.D
 func (p *CorePool) Collect(recipient string, tickLower, tickUpper int, amount0Req, amount1Req decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
 	err := p.checkTicks(tickLower, tickUpper)
 	if err != nil {
-		return decimal.Zero, decimal.Zero, err
+		return ZERO, ZERO, err
 	}
 	return p.PositionManager.CollectPosition(recipient, tickLower, tickUpper, amount0Req, amount1Req)
 }
@@ -198,35 +198,39 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 	var sqrtPriceLimitX96 decimal.Decimal
 	if optionalSqrtPriceLimitX96 == nil {
 		if zeroForOne {
-			sqrtPriceLimitX96 = MIN_SQRT_RATIO.Add(decimal.NewFromInt(1))
+			sqrtPriceLimitX96 = MIN_SQRT_RATIO.Add(ONE)
 		} else {
-			sqrtPriceLimitX96 = MAX_SQRT_RATIO.Sub(decimal.NewFromInt(1))
+			sqrtPriceLimitX96 = MAX_SQRT_RATIO.Sub(ONE)
 		}
+	} else {
+		sqrtPriceLimitX96 = *optionalSqrtPriceLimitX96
 	}
+
 	if zeroForOne {
 		if !sqrtPriceLimitX96.GreaterThan(MIN_SQRT_RATIO) {
-			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_MIN")
+			return ZERO, ZERO, ZERO, errors.New("RATIO_MIN")
 		}
 		if !sqrtPriceLimitX96.LessThan(p.SqrtPriceX96) {
-			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_CURRENT")
+			return ZERO, ZERO, ZERO, errors.New("RATIO_CURRENT")
 		}
 
 	} else {
 		if !sqrtPriceLimitX96.LessThan(MAX_SQRT_RATIO) {
-			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_MAX")
+			return ZERO, ZERO, ZERO, errors.New("RATIO_MAX")
 		}
 		if !sqrtPriceLimitX96.GreaterThan(p.SqrtPriceX96) {
-			return decimal.Zero, decimal.Zero, decimal.Zero, errors.New("RATIO_CURRENT")
+			return ZERO, ZERO, ZERO, errors.New("RATIO_CURRENT")
 		}
 	}
-	exactInput := amountSpecified.GreaterThanOrEqual(decimal.Zero)
+	exactInput := amountSpecified.GreaterThanOrEqual(ZERO)
 	state := swapState{
 		amountSpecifiedRemaining: amountSpecified,
-		amountCalculated:         decimal.Zero,
+		amountCalculated:         ZERO,
 		sqrtPriceX96:             p.SqrtPriceX96,
 		tick:                     p.TickCurrent,
 		liquidity:                p.Liquidity,
 	}
+
 	if zeroForOne {
 		state.feeGrowthGlobalX128 = p.FeeGrowthGlobal0X128
 	} else {
@@ -234,15 +238,15 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 	}
 	for {
 		// 达到限价或者兑换完成
-		if state.amountSpecifiedRemaining.Equal(decimal.Zero) || state.sqrtPriceX96.Equal(sqrtPriceLimitX96) {
+		if state.amountSpecifiedRemaining.Equal(ZERO) || state.sqrtPriceX96.Equal(sqrtPriceLimitX96) {
 			break
 		}
 		step := StepComputations{
-			sqrtPriceStartX96: decimal.Zero, tickNext: 0, initialized: false, sqrtPriceNextX96: decimal.Zero, amountIn: decimal.Zero, amountOut: decimal.Zero, feeAmount: decimal.Zero}
+			sqrtPriceStartX96: ZERO, tickNext: 0, initialized: false, sqrtPriceNextX96: ZERO, amountIn: ZERO, amountOut: ZERO, feeAmount: ZERO}
 		step.sqrtPriceStartX96 = state.sqrtPriceX96
 		tickNext, initialized, err := p.TickManager.GetNextInitializedTick(state.tick, p.TickSpacing, zeroForOne)
 		if err != nil {
-			return decimal.Zero, decimal.Zero, decimal.Zero, err
+			return ZERO, ZERO, ZERO, err
 		}
 		step.tickNext = tickNext
 		step.initialized = initialized
@@ -253,7 +257,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		}
 		step.sqrtPriceNextX96, err = GetSqrtRatioAtTick(step.tickNext)
 		if err != nil {
-			return decimal.Zero, decimal.Zero, decimal.Zero, err
+			return ZERO, ZERO, ZERO, err
 		}
 		var sqrtRatioTargetX96 decimal.Decimal
 		var b1 bool
@@ -273,7 +277,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		step.amountOut = decimal.NewFromBigInt(_amountOut, 0)
 		step.feeAmount = decimal.NewFromBigInt(_feeAmount, 0)
 		if err != nil {
-			return decimal.Zero, decimal.Zero, decimal.Zero, err
+			return ZERO, ZERO, ZERO, err
 		}
 		if exactInput {
 			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Sub(step.amountIn.Add(step.feeAmount))
@@ -289,7 +293,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 			if step.initialized {
 				nextTick, err := p.TickManager.GetTickAndInitIfAbsent(step.tickNext)
 				if err != nil {
-					return decimal.Zero, decimal.Zero, decimal.Zero, err
+					return ZERO, ZERO, ZERO, err
 				}
 				var liquidityNet decimal.Decimal
 				if isStatic {
@@ -306,7 +310,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 				}
 				state.liquidity, err = AddDelta(state.liquidity, liquidityNet)
 				if err != nil {
-					return decimal.Zero, decimal.Zero, decimal.Zero, err
+					return ZERO, ZERO, ZERO, err
 				}
 
 			}
@@ -318,7 +322,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		} else if !state.sqrtPriceX96.Equal(step.sqrtPriceStartX96) {
 			state.tick, err = GetTickAtSqrtRatio(state.sqrtPriceX96)
 			if err != nil {
-				return decimal.Zero, decimal.Zero, decimal.Zero, err
+				return ZERO, ZERO, ZERO, err
 			}
 		}
 	}
@@ -406,7 +410,7 @@ func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decim
 		}
 	}
 	logrus.Fatal("failed find swap solution")
-	return decimal.Zero, nil, nil
+	return ZERO, nil, nil
 }
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
@@ -425,68 +429,68 @@ func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
 func (p *CorePool) modifyPosition(owner string, tickLower, tickUpper int, liquidityDelta decimal.Decimal) (*Position, decimal.Decimal, decimal.Decimal, error) {
 	err := p.checkTicks(tickLower, tickUpper)
 	if err != nil {
-		return nil, decimal.Zero, decimal.Zero, err
+		return nil, ZERO, ZERO, err
 	}
-	amount0 := decimal.Zero
-	amount1 := decimal.Zero
+	amount0 := ZERO
+	amount1 := ZERO
 	positionView := p.PositionManager.GetPositionReadonly(owner, tickLower, tickUpper)
 	if liquidityDelta.IsNegative() {
 		negatedLiquidityDelta := liquidityDelta.Neg()
-		if !positionView.liquidity.GreaterThanOrEqual(negatedLiquidityDelta) {
-			return nil, decimal.Zero, decimal.Zero, errors.New("Liquidity Underflow")
+		if !positionView.Liquidity.GreaterThanOrEqual(negatedLiquidityDelta) {
+			return nil, ZERO, ZERO, errors.New("Liquidity Underflow")
 		}
 	}
 	position, err := p.updatePosition(owner, tickLower, tickUpper, liquidityDelta)
 	if err != nil {
-		return nil, decimal.Zero, decimal.Zero, err
+		return nil, ZERO, ZERO, err
 	}
 	if !liquidityDelta.IsZero() {
 		if p.TickCurrent < tickLower {
 			tmp1, err := GetSqrtRatioAtTick(tickLower)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			tmp2, err := GetSqrtRatioAtTick(tickUpper)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			amount0, err = GetAmount0Delta(tmp1, tmp2, liquidityDelta)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 		} else if p.TickCurrent < tickUpper {
 			tmp2, err := GetSqrtRatioAtTick(tickUpper)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			amount0, err = GetAmount0Delta(p.SqrtPriceX96, tmp2, liquidityDelta)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			tmp3, err := GetSqrtRatioAtTick(tickLower)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			amount1, err = GetAmount1Delta(tmp3, p.SqrtPriceX96, liquidityDelta)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			p.Liquidity, err = AddDelta(p.Liquidity, liquidityDelta)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 		} else {
 			tmp1, err := GetSqrtRatioAtTick(tickLower)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			tmp2, err := GetSqrtRatioAtTick(tickUpper)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 			amount1, err = GetAmount1Delta(tmp1, tmp2, liquidityDelta)
 			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, err
+				return nil, ZERO, ZERO, err
 			}
 		}
 	}

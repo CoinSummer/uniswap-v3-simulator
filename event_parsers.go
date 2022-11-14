@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"strings"
 )
 
 type UniV3InitializeEvent struct {
@@ -21,7 +22,7 @@ type UniV3SwapEvent struct {
 	Amount0      decimal.Decimal `json:"amount0In"`
 	Amount1      decimal.Decimal `json:"amount1In"`
 	SqrtPriceX96 decimal.Decimal `json:"sqrt_price_x96"`
-	Liquidity    decimal.Decimal `json:"liquidity"`
+	Liquidity    decimal.Decimal `json:"Liquidity"`
 	Recipient    string          `json:"to"`
 	LogIndex     string          `json:"logIndex"`
 	Removed      bool            `json:"removed"`
@@ -39,7 +40,7 @@ type UniV3MintEvent struct {
 }
 type UniV3BurnEvent struct {
 	RawEvent  *types.Log      `json:"raw_event"`
-	Sender    string          `json:"sender"` // index value
+	Owner     string          `json:"owner"` // index value
 	TickLower int             `json:"tick_lower"`
 	TickUpper int             `json:"tick_upper"`
 	Amount    decimal.Decimal `json:"amount"`
@@ -77,7 +78,7 @@ func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 	}
 	liquidity, ok := liq.(*big.Int)
 	if !ok {
-		return nil, fmt.Errorf("parse swap err liquidity not a int")
+		return nil, fmt.Errorf("parse swap err Liquidity not a int")
 	}
 
 	parsed := &UniV3SwapEvent{
@@ -99,8 +100,8 @@ func parseUniv3MintEvent(log *types.Log) (*UniV3MintEvent, error) {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 4, len(event.Topics))
 	}
 	parsed := &UniV3MintEvent{
-		RawEvent: log,
-		//Owner:     hash2Addr(event.Topics[1]),
+		RawEvent:  log,
+		Owner:     hash2Addr(event.Topics[1]),
 		Sender:    common.BytesToAddress(data[:32]).Hex(),
 		TickLower: int(big.NewInt(0).SetBytes(event.Topics[2].Bytes()).Int64()),
 		TickUpper: int(big.NewInt(0).SetBytes(event.Topics[3].Bytes()).Int64()),
@@ -121,6 +122,7 @@ func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
 	}
 	parsed := &UniV3BurnEvent{
 		RawEvent:  log,
+		Owner:     hash2Addr(event.Topics[1]),
 		TickLower: int(big.NewInt(0).SetBytes(event.Topics[2].Bytes()).Int64()),
 		TickUpper: int(big.NewInt(0).SetBytes(event.Topics[3].Bytes()).Int64()),
 		Amount:    decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[:32]), 0),
@@ -144,4 +146,8 @@ func parseUniv3InitializeEvent(log *types.Log) (*UniV3InitializeEvent, error) {
 		Tick:         int(big.NewInt(0).SetBytes(data[32:64]).Int64()),
 	}
 	return parsed, nil
+}
+func hash2Addr(hs common.Hash) string {
+	return strings.ToLower(common.BytesToAddress(hs[12:]).Hex())
+
 }

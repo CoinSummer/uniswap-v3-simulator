@@ -9,30 +9,29 @@ import (
 )
 
 type Position struct {
-	liquidity                decimal.Decimal
-	feeGrowthInside0LastX128 decimal.Decimal
-	feeGrowthInside1LastX128 decimal.Decimal
-	tokensOwed0              decimal.Decimal
-	tokensOwed1              decimal.Decimal
+	Liquidity                decimal.Decimal
+	FeeGrowthInside0LastX128 decimal.Decimal
+	FeeGrowthInside1LastX128 decimal.Decimal
+	TokensOwed0              decimal.Decimal
+	TokensOwed1              decimal.Decimal
 }
 
 func NewPosition() *Position {
 	return &Position{
-		liquidity:                decimal.Zero,
-		feeGrowthInside0LastX128: decimal.Zero,
-		feeGrowthInside1LastX128: decimal.Zero,
-		tokensOwed0:              decimal.Zero,
-		tokensOwed1:              decimal.Zero,
+		Liquidity:                ZERO,
+		FeeGrowthInside0LastX128: ZERO,
+		FeeGrowthInside1LastX128: ZERO,
+		TokensOwed0:              ZERO,
+		TokensOwed1:              ZERO,
 	}
-
 }
 func (p *Position) Clone() *Position {
 	return &Position{
-		liquidity:                p.liquidity,
-		feeGrowthInside0LastX128: p.feeGrowthInside0LastX128,
-		feeGrowthInside1LastX128: p.feeGrowthInside1LastX128,
-		tokensOwed0:              p.tokensOwed0,
-		tokensOwed1:              p.tokensOwed1,
+		Liquidity:                p.Liquidity,
+		FeeGrowthInside0LastX128: p.FeeGrowthInside0LastX128,
+		FeeGrowthInside1LastX128: p.FeeGrowthInside1LastX128,
+		TokensOwed0:              p.TokensOwed0,
+		TokensOwed1:              p.TokensOwed1,
 	}
 }
 func (p *Position) Update(
@@ -43,27 +42,27 @@ func (p *Position) Update(
 	var liquidityNext decimal.Decimal
 	var err error
 	if liquidityDelta.IsZero() {
-		if p.liquidity.LessThanOrEqual(decimal.Zero) {
+		if p.Liquidity.LessThanOrEqual(ZERO) {
 			return errors.New("NP")
 		}
-		liquidityNext = p.liquidity
+		liquidityNext = p.Liquidity
 	} else {
-		liquidityNext, err = LiquidityAddDelta(p.liquidity, liquidityDelta)
+		liquidityNext, err = LiquidityAddDelta(p.Liquidity, liquidityDelta)
 		if err != nil {
 			return err
 		}
 	}
-	tokensOwed0 := feeGrowthInside0X128.Sub(p.feeGrowthInside0LastX128).Mul(p.liquidity).Div(Q128)
-	tokensOwed1 := feeGrowthInside1X128.Sub(p.feeGrowthInside1LastX128).Mul(p.liquidity).Div(Q128)
+	tokensOwed0 := feeGrowthInside0X128.Sub(p.FeeGrowthInside0LastX128).Mul(p.Liquidity).Div(Q128)
+	tokensOwed1 := feeGrowthInside1X128.Sub(p.FeeGrowthInside1LastX128).Mul(p.Liquidity).Div(Q128)
 	if !liquidityDelta.IsZero() {
-		p.liquidity = liquidityNext
+		p.Liquidity = liquidityNext
 	}
-	p.feeGrowthInside0LastX128 = feeGrowthInside0X128
-	p.feeGrowthInside1LastX128 = feeGrowthInside1X128
+	p.FeeGrowthInside0LastX128 = feeGrowthInside0X128
+	p.FeeGrowthInside1LastX128 = feeGrowthInside1X128
 
-	if tokensOwed0.GreaterThan(decimal.Zero) || tokensOwed1.GreaterThan(decimal.Zero) {
-		p.tokensOwed0 = p.tokensOwed0.Add(tokensOwed0)
-		p.tokensOwed1 = p.tokensOwed1.Add(tokensOwed1)
+	if tokensOwed0.GreaterThan(ZERO) || tokensOwed1.GreaterThan(ZERO) {
+		p.TokensOwed0 = p.TokensOwed0.Add(tokensOwed0)
+		p.TokensOwed1 = p.TokensOwed1.Add(tokensOwed1)
 	}
 	return nil
 }
@@ -71,11 +70,11 @@ func (p *Position) UpdateBurn(
 	newTokensOwed0 decimal.Decimal,
 	newTokensOwed1 decimal.Decimal,
 ) {
-	p.tokensOwed0 = newTokensOwed0
-	p.tokensOwed1 = newTokensOwed1
+	p.TokensOwed0 = newTokensOwed0
+	p.TokensOwed1 = newTokensOwed1
 }
 func (p *Position) IsEmpty() bool {
-	return p.liquidity.IsZero() && p.tokensOwed0.IsZero() && p.tokensOwed1.IsZero()
+	return p.Liquidity.IsZero() && p.TokensOwed0.IsZero() && p.TokensOwed1.IsZero()
 }
 
 func GetPositionKey(owner string, tickLower int, tickUpper int) string {
@@ -102,7 +101,7 @@ func (pm *PositionManager) GetPositionAndInitIfAbsent(key string) *Position {
 	if v, ok := pm.Positions[key]; ok {
 		return v
 	}
-	newP := &Position{}
+	newP := NewPosition()
 	pm.Set(key, newP)
 	return newP
 }
@@ -114,33 +113,33 @@ func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int, tick
 	return NewPosition()
 }
 func (pm *PositionManager) CollectPosition(owner string, tickLower int, tickUpper int, amount0Requested, amount1Requested decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
-	if amount0Requested.LessThan(decimal.Zero) || amount1Requested.LessThan(decimal.Zero) {
-		return decimal.Zero, decimal.Zero, errors.New("amounts requested should be positive")
+	if amount0Requested.LessThan(ZERO) || amount1Requested.LessThan(ZERO) {
+		return ZERO, ZERO, errors.New("amounts requested should be positive")
 	}
 	key := GetPositionKey(owner, tickLower, tickUpper)
 	if v, ok := pm.Positions[key]; ok {
 		positionToCollect := v
 		var amount0 decimal.Decimal
-		if amount0Requested.GreaterThan(positionToCollect.tokensOwed0) {
-			amount0 = positionToCollect.tokensOwed0
+		if amount0Requested.GreaterThan(positionToCollect.TokensOwed0) {
+			amount0 = positionToCollect.TokensOwed0
 		} else {
 			amount0 = amount0Requested
 		}
 		var amount1 decimal.Decimal
-		if amount1Requested.GreaterThan(positionToCollect.tokensOwed1) {
-			amount1 = positionToCollect.tokensOwed1
+		if amount1Requested.GreaterThan(positionToCollect.TokensOwed1) {
+			amount1 = positionToCollect.TokensOwed1
 		} else {
 			amount1 = amount1Requested
 		}
-		if amount0.GreaterThan(decimal.Zero) || amount1.GreaterThan(decimal.Zero) {
-			positionToCollect.UpdateBurn(positionToCollect.tokensOwed0.Sub(amount0), positionToCollect.tokensOwed1.Sub(amount1))
+		if amount0.GreaterThan(ZERO) || amount1.GreaterThan(ZERO) {
+			positionToCollect.UpdateBurn(positionToCollect.TokensOwed0.Sub(amount0), positionToCollect.TokensOwed1.Sub(amount1))
 		}
 		if positionToCollect.IsEmpty() {
 			pm.Clear(key)
 		}
 		return amount0, amount1, nil
 	} else {
-		return decimal.Zero, decimal.Zero, nil
+		return ZERO, ZERO, nil
 	}
 
 }

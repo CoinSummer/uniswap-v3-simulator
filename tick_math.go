@@ -100,7 +100,7 @@ func mulShift(val decimal.Decimal, mulBy string) decimal.Decimal {
 
 func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 	if tick < MIN_TICK || tick > MAX_TICK {
-		return decimal.Zero, errors.New("TICK")
+		return ZERO, errors.New("TICK")
 	}
 	var absTick int = int(math.Abs(float64(tick)))
 	var ratio decimal.Decimal
@@ -191,7 +191,7 @@ func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 	}
 	_, remainder := ratio.QuoRem(Q32, 0)
 	remainder = remainder.RoundDown(0)
-	if remainder.GreaterThan(decimal.Zero) {
+	if remainder.GreaterThan(ZERO) {
 		return ratio.Div(Q32).Add(decimal.NewFromInt(1)).RoundDown(0), nil
 	} else {
 		return ratio.Div(Q32).RoundDown(0), nil
@@ -199,7 +199,7 @@ func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 }
 
 func MostSignificantBit(x decimal.Decimal) (int, error) {
-	if !x.GreaterThan(decimal.Zero) {
+	if !x.GreaterThan(ZERO) {
 		return 0, errors.New("ZERO")
 	}
 	if !x.LessThanOrEqual(MaxUint256) {

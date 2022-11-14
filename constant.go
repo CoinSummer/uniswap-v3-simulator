@@ -26,5 +26,6 @@ var (
 	MIN_SQRT_RATIO        = decimal.NewFromInt(4295128739)
 	MAX_SQRT_RATIO, _     = decimal.NewFromString("1461446703485210103287273052203988822378723970342")
 
-	ONE = decimal.NewFromInt(1)
+	ZERO = decimal.Zero
+	ONE  = decimal.NewFromInt(1)
 )
