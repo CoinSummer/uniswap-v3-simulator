@@ -6,6 +6,8 @@ import (
 	"github.com/daoleno/uniswapv3-sdk/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/shopspring/decimal"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -19,8 +21,7 @@ const (
 
 // snapshot
 type Snapshot struct {
-	Id                   string
-	Description          string
+	PoolAddress          string
 	PoolConfig           *PoolConfig
 	Token0Balance        decimal.Decimal
 	Token1Balance        decimal.Decimal
@@ -58,6 +59,9 @@ func NewPoolConfig(
 
 // core pool
 type CorePool struct {
+	gorm.Model
+	PoolAddress          string `gorm:"index"`
+	HasCreated           bool   // has created in db, Flush will set to true
 	Token0               string
 	Token1               string
 	Fee                  FeeAmount
@@ -342,6 +346,68 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 	return amount0, amount1, state.sqrtPriceX96, nil
 }
 
+type SwapSolution struct {
+	AmountSpecified   decimal.Decimal
+	SqrtPriceLimitX96 *decimal.Decimal
+}
+
+func (p *CorePool) tryToDryRun(param *UniV3SwapEvent, amountSpec decimal.Decimal, sqrtPriceLimitX96 *decimal.Decimal) bool {
+	var zeroForOne = param.Amount0.IsPositive()
+	amount0, amount1, priceX96, err := p.handleSwap(zeroForOne, amountSpec, sqrtPriceLimitX96, true)
+	if err != nil {
+		logrus.Error(err)
+		return false
+	}
+	return amount0.Equal(param.Amount0) && amount1.Equal(param.Amount1) && priceX96.Equal(param.SqrtPriceX96)
+}
+
+func incTowardsInfinity(d decimal.Decimal) decimal.Decimal {
+	if d.IsZero() {
+		logrus.Fatal(d)
+	}
+	if d.IsPositive() {
+		return d.Add(ONE)
+	} else {
+		return d.Sub(ONE)
+	}
+}
+func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decimal.Decimal, *decimal.Decimal, error) {
+	solution1 := SwapSolution{SqrtPriceLimitX96: &param.SqrtPriceX96}
+	if param.Liquidity.IsZero() {
+		solution1.AmountSpecified = incTowardsInfinity(param.Amount0)
+	} else {
+		solution1.AmountSpecified = param.Amount0
+	}
+
+	solution2 := SwapSolution{SqrtPriceLimitX96: &param.SqrtPriceX96}
+	if param.Liquidity.IsZero() {
+		solution2.AmountSpecified = incTowardsInfinity(param.Amount1)
+	} else {
+		solution2.AmountSpecified = param.Amount1
+	}
+
+	solution3 := SwapSolution{SqrtPriceLimitX96: nil, AmountSpecified: param.Amount0}
+	solution4 := SwapSolution{SqrtPriceLimitX96: nil, AmountSpecified: param.Amount1}
+	solutionList := []SwapSolution{solution3, solution4}
+	if !param.SqrtPriceX96.Equal(p.SqrtPriceX96) {
+		if param.Liquidity.Equal(decimal.NewFromInt(-1)) {
+			solution5 := SwapSolution{AmountSpecified: param.Amount0, SqrtPriceLimitX96: &param.SqrtPriceX96}
+			solution6 := SwapSolution{AmountSpecified: param.Amount1, SqrtPriceLimitX96: &param.SqrtPriceX96}
+			solutionList = append(solutionList, solution5)
+			solutionList = append(solutionList, solution6)
+		}
+		solutionList = append(solutionList, solution1)
+		solutionList = append(solutionList, solution2)
+	}
+	for _, solution := range solutionList {
+		if p.tryToDryRun(param, solution.AmountSpecified, solution.SqrtPriceLimitX96) {
+			return solution.AmountSpecified, solution.SqrtPriceLimitX96, nil
+		}
+	}
+	logrus.Fatal("failed find swap solution")
+	return decimal.Zero, nil, nil
+}
+
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {
 	if !(tickLower < tickUpper) {
 		return errors.New("tickLower should lower than tickUpper")
@@ -466,6 +532,15 @@ func (p *CorePool) updatePosition(owner string, lower int, upper int, delta deci
 		}
 	}
 	return position, nil
+}
+
+func (p *CorePool) Flush(db *gorm.DB) error {
+	if p.HasCreated {
+		return db.Model(p).Updates(p).Error
+	} else {
+		p.HasCreated = true
+		return db.Create(p).Error
+	}
 }
 
 type ActionType string

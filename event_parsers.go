@@ -12,25 +12,27 @@ import (
 type UniV3InitializeEvent struct {
 	RawEvent     *types.Log      `json:"raw_event"`
 	SqrtPriceX96 decimal.Decimal `json:"sqrt_price_x96"`
-	tick         int             `json:"tick"`
+	Tick         int             `json:"tick"`
 	Removed      bool            `json:"removed"`
 }
 type UniV3SwapEvent struct {
-	RawEvent  *types.Log      `json:"raw_event"`
-	Sender    string          `json:"sender"`
-	Amount0   decimal.Decimal `json:"amount0In"`
-	Amount1   decimal.Decimal `json:"amount1In"`
-	Recipient string          `json:"to"`
-	LogIndex  string          `json:"logIndex"`
-	Removed   bool            `json:"removed"`
+	RawEvent     *types.Log      `json:"raw_event"`
+	Sender       string          `json:"sender"`
+	Amount0      decimal.Decimal `json:"amount0In"`
+	Amount1      decimal.Decimal `json:"amount1In"`
+	SqrtPriceX96 decimal.Decimal `json:"sqrt_price_x96"`
+	Liquidity    decimal.Decimal `json:"liquidity"`
+	Recipient    string          `json:"to"`
+	LogIndex     string          `json:"logIndex"`
+	Removed      bool            `json:"removed"`
 }
 
 type UniV3MintEvent struct {
 	RawEvent  *types.Log      `json:"raw_event"`
 	Sender    string          `json:"sender"` // index value
 	Owner     string          `json:"owner"`  // index value
-	TickLower decimal.Decimal `json:"tick_lower"`
-	TickUpper decimal.Decimal `json:"tick_upper"`
+	TickLower int             `json:"tick_lower"`
+	TickUpper int             `json:"tick_upper"`
 	Amount    decimal.Decimal `json:"amount"`
 	Amount0   decimal.Decimal `json:"amount0"`
 	Amount1   decimal.Decimal `json:"amount1"`
@@ -38,8 +40,8 @@ type UniV3MintEvent struct {
 type UniV3BurnEvent struct {
 	RawEvent  *types.Log      `json:"raw_event"`
 	Sender    string          `json:"sender"` // index value
-	TickLower decimal.Decimal `json:"tick_lower"`
-	TickUpper decimal.Decimal `json:"tick_upper"`
+	TickLower int             `json:"tick_lower"`
+	TickUpper int             `json:"tick_upper"`
 	Amount    decimal.Decimal `json:"amount"`
 	Amount0   decimal.Decimal `json:"amount0"`
 	Amount1   decimal.Decimal `json:"amount1"`
@@ -52,6 +54,8 @@ func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 3, len(event.Topics))
 	}
 	int256, _ := abi.NewType("int256", "", nil)
+	uint160, _ := abi.NewType("uint160", "", nil)
+	uint128, _ := abi.NewType("uint128", "", nil)
 	a0 := abi.ReadInteger(int256, data[0:32])
 
 	amount0, ok := a0.(*big.Int)
@@ -65,11 +69,23 @@ func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 	if !ok {
 		return nil, fmt.Errorf("parse swap err amount1 not a int")
 	}
+	price := abi.ReadInteger(uint160, data[32*2:32*3])
+	liq := abi.ReadInteger(uint128, data[32*3:32*4])
+	sqrtPriceX96, ok := price.(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("parse swap err sqrtPriceX96 not a int")
+	}
+	liquidity, ok := liq.(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("parse swap err liquidity not a int")
+	}
 
 	parsed := &UniV3SwapEvent{
-		RawEvent: log,
-		Amount0:  decimal.NewFromBigInt(amount0, 0),
-		Amount1:  decimal.NewFromBigInt(amount1, 0),
+		RawEvent:     log,
+		Amount0:      decimal.NewFromBigInt(amount0, 0),
+		Amount1:      decimal.NewFromBigInt(amount1, 0),
+		SqrtPriceX96: decimal.NewFromBigInt(sqrtPriceX96, 0),
+		Liquidity:    decimal.NewFromBigInt(liquidity, 0),
 	}
 	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
 		return nil, fmt.Errorf("swap amoun is 0: %s", log.TxHash)
@@ -86,8 +102,8 @@ func parseUniv3MintEvent(log *types.Log) (*UniV3MintEvent, error) {
 		RawEvent: log,
 		//Owner:     hash2Addr(event.Topics[1]),
 		Sender:    common.BytesToAddress(data[:32]).Hex(),
-		TickLower: decimal.NewFromBigInt(big.NewInt(0).SetBytes(event.Topics[2].Bytes()), 0),
-		TickUpper: decimal.NewFromBigInt(big.NewInt(0).SetBytes(event.Topics[3].Bytes()), 0),
+		TickLower: int(big.NewInt(0).SetBytes(event.Topics[2].Bytes()).Int64()),
+		TickUpper: int(big.NewInt(0).SetBytes(event.Topics[3].Bytes()).Int64()),
 		Amount:    decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32:32*2]), 0),
 		Amount0:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*2:32*3]), 0),
 		Amount1:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*3:32*4]), 0),
@@ -105,8 +121,8 @@ func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
 	}
 	parsed := &UniV3BurnEvent{
 		RawEvent:  log,
-		TickLower: decimal.NewFromBigInt(big.NewInt(0).SetBytes(event.Topics[2].Bytes()), 0),
-		TickUpper: decimal.NewFromBigInt(big.NewInt(0).SetBytes(event.Topics[3].Bytes()), 0),
+		TickLower: int(big.NewInt(0).SetBytes(event.Topics[2].Bytes()).Int64()),
+		TickUpper: int(big.NewInt(0).SetBytes(event.Topics[3].Bytes()).Int64()),
 		Amount:    decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[:32]), 0),
 		Amount0:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*1:32*2]), 0),
 		Amount1:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*2:32*3]), 0),
@@ -125,7 +141,7 @@ func parseUniv3InitializeEvent(log *types.Log) (*UniV3InitializeEvent, error) {
 	parsed := &UniV3InitializeEvent{
 		RawEvent:     log,
 		SqrtPriceX96: decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[:32]), 0),
-		tick:         int(big.NewInt(0).SetBytes(data[32:64]).Int64()),
+		Tick:         int(big.NewInt(0).SetBytes(data[32:64]).Int64()),
 	}
 	return parsed, nil
 }

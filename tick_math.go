@@ -89,6 +89,7 @@ func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int, error) {
 		}
 	}
 }
+
 func mulShift(val decimal.Decimal, mulBy string) decimal.Decimal {
 	byBi, _ := big.NewInt(0).SetString(mulBy, 16)
 	by := decimal.NewFromBigInt(byBi, 0)
@@ -96,6 +97,7 @@ func mulShift(val decimal.Decimal, mulBy string) decimal.Decimal {
 	tmp = tmp.Rsh(tmp, 128)
 	return decimal.NewFromBigInt(tmp, 0)
 }
+
 func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 	if tick < MIN_TICK || tick > MAX_TICK {
 		return decimal.Zero, errors.New("TICK")

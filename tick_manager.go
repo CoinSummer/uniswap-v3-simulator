@@ -1,7 +1,10 @@
 package uniswap_v3_simulator
 
 import (
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/shopspring/decimal"
 	"math"
 	"sort"
@@ -85,29 +88,29 @@ func (t *Tick) Cross(
 }
 
 type TickManager struct {
-	ticks       map[int]*Tick
-	sortedTicks []*Tick
+	Ticks       map[int]*Tick `json:"ticks"`
+	SortedTicks []*Tick       `json:"sorted_ticks"`
 }
 
 func NewTickManager() *TickManager {
 	return &TickManager{
-		ticks: map[int]*Tick{},
+		Ticks: map[int]*Tick{},
 	}
 }
 func (tm *TickManager) GetTickAndInitIfAbsent(index int) (*Tick, error) {
-	if tick, ok := tm.ticks[index]; ok {
+	if tick, ok := tm.Ticks[index]; ok {
 		return tick, nil
 	} else {
 		tick, err := NewTick(index)
 		if err != nil {
 			return nil, err
 		}
-		tm.ticks[tick.TickIndex] = tick
+		tm.Ticks[tick.TickIndex] = tick
 		return tick, nil
 	}
 }
 func (tm *TickManager) GetTickReadonly(index int) (*Tick, error) {
-	if tick, ok := tm.ticks[index]; ok {
+	if tick, ok := tm.Ticks[index]; ok {
 		return tick, nil
 	} else {
 		tick, err := NewTick(index)
@@ -147,28 +150,28 @@ func (tm *TickManager) nextInitializedTick(ticks []*Tick, tick int, lte bool) (*
 }
 
 func (tm *TickManager) SortTicks() {
-	tm.sortedTicks = tm.GetSortedTicks()
+	tm.SortedTicks = tm.GetSortedTicks()
 }
 func (tm *TickManager) Clear(tick int) {
-	delete(tm.ticks, tick)
+	delete(tm.Ticks, tick)
 	tm.SortTicks()
 }
 
 func (tm *TickManager) GetSortedTicks() []*Tick {
-	keys := make([]int, 0, len(tm.ticks))
-	for k, _ := range tm.ticks {
+	keys := make([]int, 0, len(tm.Ticks))
+	for k, _ := range tm.Ticks {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)
 	var result []*Tick
 	for _, k := range keys {
-		result = append(result, tm.ticks[k])
+		result = append(result, tm.Ticks[k])
 	}
 	return result
 }
 
 func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (int, bool, error) {
-	sortedTicks := tm.sortedTicks
+	sortedTicks := tm.SortedTicks
 	compressed := int(math.Floor(float64(tick / tickSpacing)))
 	if lte {
 		wordPos := compressed >> 8
@@ -198,8 +201,8 @@ func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (
 }
 
 func (tm *TickManager) getFeeGrowthInside(tickLower, tickUpper, tickCurrent int, feeGrowthGlobal0X128, feeGrowthGlobal1X128 decimal.Decimal) (decimal.Decimal, decimal.Decimal, error) {
-	_, lok := tm.ticks[tickLower]
-	_, uok := tm.ticks[tickUpper]
+	_, lok := tm.Ticks[tickLower]
+	_, uok := tm.Ticks[tickUpper]
 	if !lok || !uok {
 		return decimal.Zero, decimal.Zero, errors.New("INVALID_TICK")
 	}
@@ -275,4 +278,34 @@ func (tm *TickManager) binarySearch(sortedTicks []*Tick, tick int) (int, error) 
 			r = i - 1
 		}
 	}
+}
+func (nc *TickManager) GormDataType() string {
+	return "LONGTEXT"
+}
+
+func (j *TickManager) Scan(value interface{}) error {
+	var err error
+	switch v := value.(type) {
+	case []byte:
+		{
+			err = json.Unmarshal(v, j)
+		}
+	case string:
+		{
+			err = json.Unmarshal([]byte(v), j)
+		}
+	case nil:
+		return nil
+	default:
+		err = errors.New(fmt.Sprint("Failed to unmarshal TickManager value:", value))
+	}
+	return err
+}
+
+func (j TickManager) Value() (driver.Value, error) {
+	bs, err := json.Marshal(j)
+	if err != nil {
+		return nil, err
+	}
+	return string(bs), nil
 }

@@ -81,23 +81,23 @@ func GetPositionKey(owner string, tickLower int, tickUpper int) string {
 }
 
 type PositionManager struct {
-	positions map[string]*Position
+	Positions map[string]*Position
 }
 
 func NewPositionManager() *PositionManager {
 	return &PositionManager{
-		positions: map[string]*Position{},
+		Positions: map[string]*Position{},
 	}
 }
 
 func (pm *PositionManager) Set(key string, position *Position) {
-	pm.positions[key] = position
+	pm.Positions[key] = position
 }
 func (pm *PositionManager) Clear(key string) {
-	delete(pm.positions, key)
+	delete(pm.Positions, key)
 }
 func (pm *PositionManager) GetPositionAndInitIfAbsent(key string) *Position {
-	if v, ok := pm.positions[key]; ok {
+	if v, ok := pm.Positions[key]; ok {
 		return v
 	}
 	newP := &Position{}
@@ -106,7 +106,7 @@ func (pm *PositionManager) GetPositionAndInitIfAbsent(key string) *Position {
 }
 func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int, tickUpper int) *Position {
 	key := GetPositionKey(owner, tickLower, tickUpper)
-	if v, ok := pm.positions[key]; ok {
+	if v, ok := pm.Positions[key]; ok {
 		return v.Clone()
 	}
 	return NewPosition()
@@ -116,7 +116,7 @@ func (pm *PositionManager) CollectPosition(owner string, tickLower int, tickUppe
 		return decimal.Zero, decimal.Zero, errors.New("amounts requested should be positive")
 	}
 	key := GetPositionKey(owner, tickLower, tickUpper)
-	if v, ok := pm.positions[key]; ok {
+	if v, ok := pm.Positions[key]; ok {
 		positionToCollect := v
 		var amount0 decimal.Decimal
 		if amount0Requested.GreaterThan(positionToCollect.tokensOwed0) {
