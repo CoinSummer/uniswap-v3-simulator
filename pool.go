@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/daoleno/uniswapv3-sdk/utils"
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"time"
 )
@@ -48,18 +47,13 @@ func NewPoolConfig(
 	Token0 string,
 	Token1 string,
 	Fee FeeAmount,
-) (*PoolConfig, error) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return nil, err
-	}
+) *PoolConfig {
 	return &PoolConfig{
-		Id:          id.String(),
 		TickSpacing: TickSpacing,
 		Token0:      Token0,
 		Token1:      Token1,
 		Fee:         Fee,
-	}, nil
+	}
 }
 
 // core pool
