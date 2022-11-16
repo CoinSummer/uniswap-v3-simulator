@@ -2,6 +2,7 @@ package uniswap_v3_simulator
 
 import (
 	"errors"
+	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/shopspring/decimal"
 	"math"
 	"math/big"
@@ -32,67 +33,59 @@ func TickSpacingToMaxLiquidityPerTick(tickSpacing int) decimal.Decimal {
 	return MaxUint128.Div(numTicks).RoundDown(0)
 }
 
-func GetTickAtSqrtRatio(sqrtRatioX96 decimal.Decimal) (int, error) {
-	if sqrtRatioX96.LessThan(MIN_SQRT_RATIO) || sqrtRatioX96.GreaterThanOrEqual(MAX_SQRT_RATIO) {
-		return 0, errors.New("SQRT_RATIO")
+var (
+	ErrInvalidTick      = errors.New("invalid tick")
+	ErrInvalidSqrtRatio = errors.New("invalid sqrt ratio")
+	magicSqrt10001, _   = new(big.Int).SetString("255738958999603826347141", 10)
+	magicTickLow, _     = new(big.Int).SetString("3402992956809132418596140100660247210", 10)
+	magicTickHigh, _    = new(big.Int).SetString("291339464771989622907027621153398088495", 10)
+)
+
+func GetTickAtSqrtRatio(sqrtRatioX96D decimal.Decimal) (int, error) {
+	sqrtRatioX96 := sqrtRatioX96D.BigInt()
+
+	if sqrtRatioX96.Cmp(MIN_SQRT_RATIO.BigInt()) < 0 || sqrtRatioX96.Cmp(MAX_SQRT_RATIO.BigInt()) >= 0 {
+		return 0, ErrInvalidSqrtRatio
 	}
-	sqrtRatioX128 := sqrtRatioX96.Mul(decimal.NewFromInt(2).Pow(decimal.NewFromInt(32)))
+	sqrtRatioX128 := new(big.Int).Lsh(sqrtRatioX96, 32)
 	msb, err := MostSignificantBit(sqrtRatioX128)
 	if err != nil {
 		return 0, err
 	}
-	var r decimal.Decimal
-	b := sqrtRatioX128.BigInt()
-	if msb >= 128 {
-		b = b.Rsh(b, uint(msb-127))
+	var r *big.Int
+	if big.NewInt(msb).Cmp(big.NewInt(128)) >= 0 {
+		r = new(big.Int).Rsh(sqrtRatioX128, uint(msb-127))
 	} else {
-		b = b.Lsh(b, uint(127-msb))
+		r = new(big.Int).Lsh(sqrtRatioX128, uint(127-msb))
 	}
-	r = decimal.NewFromBigInt(b, 0)
-	log_2 := big.NewInt(int64(msb - 128))
-	log_2 = log_2.Lsh(log_2, 64)
-	log2 := decimal.NewFromBigInt(log_2, 0)
+
+	log2 := new(big.Int).Lsh(new(big.Int).Sub(big.NewInt(msb), big.NewInt(128)), 64)
+
 	for i := 0; i < 14; i++ {
-		tmp := r.Mul(r).BigInt()
-		tmp.Rsh(tmp, 127)
-		r = decimal.NewFromBigInt(tmp, 0)
-		f := r.BigInt()
-		f = f.Rsh(f, 128)
-		log2_bigInt := log2.BigInt()
-		log2_bigInt = log2_bigInt.Or(log2_bigInt, f.Lsh(f, uint(63-i)))
-		r_bi := r.BigInt()
-		r_bi = r_bi.Rsh(r_bi, uint(f.Int64()))
-		r = decimal.NewFromBigInt(r_bi, 0)
+		r = new(big.Int).Rsh(new(big.Int).Mul(r, r), 127)
+		f := new(big.Int).Rsh(r, 128)
+		log2 = new(big.Int).Or(log2, new(big.Int).Lsh(f, uint(63-i)))
+		r = new(big.Int).Rsh(r, uint(f.Int64()))
 	}
-	c1, _ := decimal.NewFromString("255738958999603826347141")
-	c2, _ := decimal.NewFromString("3402992956809132418596140100660247210")
-	log_sqrt10001 := log2.Mul(c1)
-	tickLow_bi := log_sqrt10001.Sub(c2).BigInt()
-	tickLow_bi = tickLow_bi.Rsh(tickLow_bi, 128)
-	tickLow := decimal.NewFromBigInt(tickLow_bi, 0)
 
-	c3, _ := decimal.NewFromString("291339464771989622907027621153398088495")
-	tickHigh_bi := log_sqrt10001.Add(c3).BigInt()
-	tickHigh_bi = tickLow_bi.Rsh(tickHigh_bi, 128)
-	tickHigh := decimal.NewFromBigInt(tickHigh_bi, 0)
-	if tickLow.Equal(tickHigh) {
-		return int(tickLow.IntPart()), nil
+	logSqrt10001 := new(big.Int).Mul(log2, magicSqrt10001)
+
+	tickLow := new(big.Int).Rsh(new(big.Int).Sub(logSqrt10001, magicTickLow), 128).Int64()
+	tickHigh := new(big.Int).Rsh(new(big.Int).Add(logSqrt10001, magicTickHigh), 128).Int64()
+
+	if tickLow == tickHigh {
+		return int(tickLow), nil
+	}
+
+	sqrtRatio, err := GetSqrtRatioAtTick(int(tickHigh))
+	if err != nil {
+		return 0, err
+	}
+	if sqrtRatio.BigInt().Cmp(sqrtRatioX96) <= 0 {
+		return int(tickHigh), nil
 	} else {
-		sqrt, err := GetSqrtRatioAtTick(int(tickHigh.IntPart()))
-		if err != nil {
-			return 0, err
-		}
-		if sqrt.LessThanOrEqual(sqrtRatioX96) {
-			return int(tickHigh.IntPart()), nil
-		} else {
-			return int(tickLow.IntPart()), nil
-		}
+		return int(tickLow), nil
 	}
-}
-
-func mulShiftBitInt(val *big.Int, mulBy *big.Int) *big.Int {
-
-	return new(big.Int).Rsh(new(big.Int).Mul(val, mulBy), 128)
 }
 
 func mulShift(val decimal.Decimal, mulBy string) decimal.Decimal {
@@ -207,18 +200,21 @@ func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 	}
 }
 
-func MostSignificantBit(x decimal.Decimal) (int, error) {
-	if !x.GreaterThan(ZERO) {
-		return 0, errors.New("ZERO")
+var ErrInvalidInput = errors.New("invalid input")
+
+func MostSignificantBit(x *big.Int) (int64, error) {
+	if x.Cmp(constants.Zero) <= 0 {
+		return 0, ErrInvalidInput
 	}
-	if !x.LessThanOrEqual(MaxUint256) {
-		return 0, errors.New("MAX")
+	if x.Cmp(MaxUint256.BigInt()) > 0 {
+		return 0, ErrInvalidInput
 	}
-	var msb int = 0
-	for _, s := range POWERS_OF_2 {
-		if x.GreaterThanOrEqual(s.pow) {
-			x = x.Div(decimal.NewFromInt(2).Pow(decimal.NewFromInt(int64(s.i)))).RoundDown(0)
-			msb += s.i
+	var msb int64
+	for _, power := range []int64{128, 64, 32, 16, 8, 4, 2, 1} {
+		min := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(power)), nil)
+		if x.Cmp(min) >= 0 {
+			x = new(big.Int).Rsh(x, uint(power))
+			msb += power
 		}
 	}
 	return msb, nil

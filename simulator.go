@@ -2,6 +2,7 @@ package uniswap_v3_simulator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -101,7 +102,7 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 		return nil, err
 	}
 
-	logrus.Infof("initialize pool: %s, block: %d tx: %s", log.Address, log.BlockNumber, log.TxHash)
+	logrus.Infof("initialize pool: %s,  tx: %s, price: %s", log.Address, log.TxHash, initialze.SqrtPriceX96)
 	price := initialze.SqrtPriceX96
 	//tick := initialze.tick
 	client, err := NewUniswapV3SimulatorCaller(log.Address, pm.rpc.GetClient())
@@ -174,6 +175,8 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 					logrus.Warnf("failed parse mint event, tx: %s  pool: %s", log.TxHash, log.Address)
 					continue
 				}
+				s, _ := json.Marshal(mint)
+				logrus.Infof("mint: %s %s %s", log.Address, log.TxHash, string(s))
 				_, _, err = pool.Mint(mint.Owner, mint.TickLower, mint.TickUpper, mint.Amount)
 				if err != nil {
 					logrus.Errorf("failed execute mint event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
@@ -191,6 +194,8 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 					logrus.Warnf("failed parse burn event, tx: %s  pool: %s", log.TxHash, log.Address)
 					continue
 				}
+				s, _ := json.Marshal(burn)
+				logrus.Infof("burn: %s %s %s", log.Address, log.TxHash, string(s))
 				_, _, err = pool.Burn(burn.Owner, burn.TickLower, burn.TickUpper, burn.Amount)
 				if err != nil {
 					logrus.Errorf("failed execute burn event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
@@ -208,6 +213,8 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 					logrus.Warnf("failed parse swap event, tx: %s  pool: %s", log.TxHash, log.Address)
 					continue
 				}
+				s, _ := json.Marshal(swap)
+				logrus.Infof("swap: %s %s %s", log.Address, log.TxHash, string(s))
 				amountSpecified, sqrtPriceX96, err := pool.ResolveInputFromSwapResultEvent(swap)
 				if err != nil {
 					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)

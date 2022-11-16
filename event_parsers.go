@@ -18,8 +18,8 @@ type UniV3InitializeEvent struct {
 type UniV3SwapEvent struct {
 	RawEvent     *types.Log      `json:"raw_event"`
 	Sender       string          `json:"sender"`
-	Amount0      decimal.Decimal `json:"amount0In"`
-	Amount1      decimal.Decimal `json:"amount1In"`
+	Amount0      decimal.Decimal `json:"amount0"`
+	Amount1      decimal.Decimal `json:"amount1"`
 	SqrtPriceX96 decimal.Decimal `json:"sqrt_price_x96"`
 	Liquidity    decimal.Decimal `json:"Liquidity"`
 	Recipient    string          `json:"to"`

@@ -4,6 +4,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+func MulDiv(a, b, denominator decimal.Decimal) decimal.Decimal {
+	product := a.Mul(b)
+	result := product.Div(denominator).RoundDown(0)
+	return result
+}
 func MulDivRoundingUp(a, b, denominator decimal.Decimal) (decimal.Decimal, error) {
 	product := a.Mul(b)
 	result := product.Div(denominator).RoundDown(0)
@@ -13,7 +18,7 @@ func MulDivRoundingUp(a, b, denominator decimal.Decimal) (decimal.Decimal, error
 		if !result.LessThan(MaxUint256) {
 			return ZERO, OVERFLOW
 		}
-		result = result.Add(decimal.NewFromInt(1))
+		result = result.Add(ONE)
 	}
 	return result, nil
 }

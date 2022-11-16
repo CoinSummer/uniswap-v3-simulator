@@ -13,7 +13,7 @@ func GetAmount1Delta(
 		if err != nil {
 			return ZERO, err
 		}
-		return r, nil
+		return r.Neg(), nil
 
 	} else {
 		r, err := GetAmount1DeltaWithRoundUp(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
@@ -35,7 +35,7 @@ func GetAmount0Delta(
 		if err != nil {
 			return ZERO, err
 		}
-		return r, nil
+		return r.Neg(), nil
 
 	} else {
 		r, err := GetAmount0DeltaWithRoundUp(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
@@ -82,7 +82,7 @@ func GetAmount0DeltaWithRoundUp(
 	if err != nil {
 		return ZERO, err
 	}
-	tmp2, err := MulDivRoundingUp(tmp1, decimal.NewFromInt(1), sqrtRatioAX96)
+	tmp2, err := MulDivRoundingUp(tmp1, ONE, sqrtRatioAX96)
 	if err != nil {
 		return ZERO, err
 	}
