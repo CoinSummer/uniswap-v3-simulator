@@ -13,7 +13,6 @@ import (
 type UniV3InitializeEvent struct {
 	RawEvent     *types.Log      `json:"raw_event"`
 	SqrtPriceX96 decimal.Decimal `json:"sqrt_price_x96"`
-	Tick         int             `json:"tick"`
 	Removed      bool            `json:"removed"`
 }
 type UniV3SwapEvent struct {
@@ -48,25 +47,25 @@ type UniV3BurnEvent struct {
 	Amount1   decimal.Decimal `json:"amount1"`
 }
 
+var (
+	int24, _   = abi.NewType("int24", "", nil)
+	int256, _  = abi.NewType("int256", "", nil)
+	uint160, _ = abi.NewType("uint160", "", nil)
+	uint128, _ = abi.NewType("uint128", "", nil)
+)
+
 func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 	event := log
 	data := event.Data
 	if len(event.Topics) != 3 {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 3, len(event.Topics))
 	}
-	int256, _ := abi.NewType("int256", "", nil)
-	uint160, _ := abi.NewType("uint160", "", nil)
-	uint128, _ := abi.NewType("uint128", "", nil)
-	a0 := abi.ReadInteger(int256, data[0:32])
-
-	amount0, ok := a0.(*big.Int)
+	amount0, ok := abi.ReadInteger(int256, data[0:32]).(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("parse swap err amount0 not a int")
 	}
 
-	a1 := abi.ReadInteger(int256, data[32:32*2])
-
-	amount1, ok := a1.(*big.Int)
+	amount1, ok := abi.ReadInteger(int256, data[32:32*2]).(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("parse swap err amount1 not a int")
 	}
@@ -99,12 +98,20 @@ func parseUniv3MintEvent(log *types.Log) (*UniV3MintEvent, error) {
 	if len(event.Topics) != 4 {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 4, len(event.Topics))
 	}
+	tickLower, ok := abi.ReadInteger(int24, event.Topics[2].Bytes()).(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("failed read mint.tick_lower %s, tx: %s", tickLower, event.TxHash)
+	}
+	tickUpper, ok := abi.ReadInteger(int24, event.Topics[3].Bytes()).(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("failed read mint.tick_upper %s, tx: %s", tickUpper, event.TxHash)
+	}
 	parsed := &UniV3MintEvent{
 		RawEvent:  log,
 		Owner:     hash2Addr(event.Topics[1]),
 		Sender:    common.BytesToAddress(data[:32]).Hex(),
-		TickLower: int(big.NewInt(0).SetBytes(event.Topics[2].Bytes()).Int64()),
-		TickUpper: int(big.NewInt(0).SetBytes(event.Topics[3].Bytes()).Int64()),
+		TickLower: int(tickLower.Int64()),
+		TickUpper: int(tickUpper.Int64()),
 		Amount:    decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32:32*2]), 0),
 		Amount0:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*2:32*3]), 0),
 		Amount1:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*3:32*4]), 0),
@@ -120,11 +127,19 @@ func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
 	if len(event.Topics) != 4 {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 4, len(event.Topics))
 	}
+	tickLower, ok := abi.ReadInteger(int24, event.Topics[2].Bytes()).(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("failed read mint.tick_lower %s, tx: %s", tickLower, event.TxHash)
+	}
+	tickUpper, ok := abi.ReadInteger(int24, event.Topics[3].Bytes()).(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("failed read mint.tick_upper %s, tx: %s", tickUpper, event.TxHash)
+	}
 	parsed := &UniV3BurnEvent{
 		RawEvent:  log,
 		Owner:     hash2Addr(event.Topics[1]),
-		TickLower: int(big.NewInt(0).SetBytes(event.Topics[2].Bytes()).Int64()),
-		TickUpper: int(big.NewInt(0).SetBytes(event.Topics[3].Bytes()).Int64()),
+		TickLower: int(tickLower.Int64()),
+		TickUpper: int(tickUpper.Int64()),
 		Amount:    decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[:32]), 0),
 		Amount0:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*1:32*2]), 0),
 		Amount1:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*2:32*3]), 0),
@@ -143,7 +158,6 @@ func parseUniv3InitializeEvent(log *types.Log) (*UniV3InitializeEvent, error) {
 	parsed := &UniV3InitializeEvent{
 		RawEvent:     log,
 		SqrtPriceX96: decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[:32]), 0),
-		Tick:         int(big.NewInt(0).SetBytes(data[32:64]).Int64()),
 	}
 	return parsed, nil
 }

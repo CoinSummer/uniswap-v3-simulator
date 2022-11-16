@@ -67,7 +67,12 @@ func NewPoolManager(startBlock int64, dbFile string, wss string, rpcs []string) 
 	pm.MintID = a.Events["Mint"].ID
 	pm.BurnID = a.Events["Burn"].ID
 	pm.SwapID = a.Events["Swap"].ID
-	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", db, wssClient, big.NewInt(startBlock), true, true, pm, context.Background())
+
+	ingesterDB, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", ingesterDB, wssClient, big.NewInt(startBlock), true, true, pm, context.Background())
 	pm.ingestor = ingester
 	db.AutoMigrate(&CorePool{})
 	var currentPool []*CorePool
@@ -228,6 +233,9 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 		}
 		return nil
 	})
+	if err != nil {
+		logrus.Warnf("failed save snapshot %s", err)
+	}
 
 	return err
 }

@@ -2,6 +2,7 @@ package uniswap_v3_simulator
 
 import (
 	"errors"
+	"fmt"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/daoleno/uniswapv3-sdk/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -363,7 +364,11 @@ func (p *CorePool) tryToDryRun(param *UniV3SwapEvent, amountSpec decimal.Decimal
 		logrus.Error(err)
 		return false
 	}
-	return amount0.Equal(param.Amount0) && amount1.Equal(param.Amount1) && priceX96.Equal(param.SqrtPriceX96)
+	result := amount0.Equal(param.Amount0) && amount1.Equal(param.Amount1) && priceX96.Equal(param.SqrtPriceX96)
+	fmt.Println(amount0, param.Amount0)
+	fmt.Println(amount1, param.Amount1)
+	fmt.Println(priceX96, param.SqrtPriceX96)
+	return result
 }
 
 func incTowardsInfinity(d decimal.Decimal) decimal.Decimal {
@@ -377,6 +382,7 @@ func incTowardsInfinity(d decimal.Decimal) decimal.Decimal {
 	}
 }
 func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decimal.Decimal, *decimal.Decimal, error) {
+	logrus.Info(param.RawEvent.TxHash)
 	solution1 := SwapSolution{SqrtPriceLimitX96: &param.SqrtPriceX96}
 	if param.Liquidity.IsZero() {
 		solution1.AmountSpecified = incTowardsInfinity(param.Amount0)
