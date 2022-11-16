@@ -280,6 +280,7 @@ func (tm *TickManager) binarySearch(sortedTicks []*Tick, tick int) (int, error) 
 		}
 	}
 }
+
 func (nc *TickManager) GormDataType() string {
 	return "LONGTEXT"
 }

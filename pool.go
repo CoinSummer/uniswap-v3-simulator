@@ -273,13 +273,13 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 			sqrtRatioTargetX96 = step.sqrtPriceNextX96
 		}
 		_sqrtPriceX96, _amountIn, _amountOut, _feeAmount, err := utils.ComputeSwapStep(state.sqrtPriceX96.BigInt(), sqrtRatioTargetX96.BigInt(), state.liquidity.BigInt(), state.amountSpecifiedRemaining.BigInt(), constants.FeeAmount(p.Fee))
+		if err != nil {
+			return ZERO, ZERO, ZERO, err
+		}
 		state.sqrtPriceX96 = decimal.NewFromBigInt(_sqrtPriceX96, 0)
 		step.amountIn = decimal.NewFromBigInt(_amountIn, 0)
 		step.amountOut = decimal.NewFromBigInt(_amountOut, 0)
 		step.feeAmount = decimal.NewFromBigInt(_feeAmount, 0)
-		if err != nil {
-			return ZERO, ZERO, ZERO, err
-		}
 		if exactInput {
 			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Sub(step.amountIn.Add(step.feeAmount))
 			state.amountCalculated = state.amountCalculated.Sub(step.amountOut)
@@ -316,6 +316,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 
 			}
 			if zeroForOne {
+				// -1 -> 0, 减1又回到-1， 形成死循环
 				state.tick = step.tickNext - 1
 			} else {
 				state.tick = step.tickNext
@@ -382,7 +383,6 @@ func incTowardsInfinity(d decimal.Decimal) decimal.Decimal {
 	}
 }
 func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decimal.Decimal, *decimal.Decimal, error) {
-	logrus.Info(param.RawEvent.TxHash)
 	solution1 := SwapSolution{SqrtPriceLimitX96: &param.SqrtPriceX96}
 	if param.Liquidity.IsZero() {
 		solution1.AmountSpecified = incTowardsInfinity(param.Amount0)
