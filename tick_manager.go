@@ -173,7 +173,9 @@ func (tm *TickManager) GetSortedTicks() []*Tick {
 
 func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (int, bool, error) {
 	sortedTicks := tm.SortedTicks
-	compressed := int(math.Floor(float64(tick / tickSpacing)))
+
+	compressed := int(math.Floor(float64(tick) / float64(tickSpacing)))
+
 	if lte {
 		wordPos := compressed >> 8
 		minimum := (wordPos << 8) * tickSpacing
