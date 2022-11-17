@@ -4,11 +4,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func MulDiv(a, b, denominator decimal.Decimal) decimal.Decimal {
-	product := a.Mul(b)
-	result := product.Div(denominator).RoundDown(0)
-	return result
-}
 func MulDivRoundingUp(a, b, denominator decimal.Decimal) (decimal.Decimal, error) {
 	product := a.Mul(b)
 	result := product.Div(denominator).RoundDown(0)
@@ -24,7 +19,7 @@ func MulDivRoundingUp(a, b, denominator decimal.Decimal) (decimal.Decimal, error
 }
 
 func Mod256Sub(a, b decimal.Decimal) (decimal.Decimal, error) {
-	if !a.GreaterThanOrEqual(ZERO) || !b.LessThanOrEqual(ZERO) || !a.LessThanOrEqual(MaxUint256) || !b.LessThanOrEqual(MaxUint256) {
+	if !a.GreaterThanOrEqual(ZERO) || !b.GreaterThanOrEqual(ZERO) || !a.LessThanOrEqual(MaxUint256) || !b.LessThanOrEqual(MaxUint256) {
 		return ZERO, OVERFLOW
 	}
 	two256 := decimal.NewFromInt(2).Pow(decimal.NewFromInt(256))

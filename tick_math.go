@@ -196,7 +196,7 @@ func GetSqrtRatioAtTick(tick int) (decimal.Decimal, error) {
 	_, remainder := ratio.QuoRem(Q32, 0)
 	remainder = remainder.RoundDown(0)
 	if remainder.GreaterThan(ZERO) {
-		return ratio.Div(Q32).Add(decimal.NewFromInt(1)).RoundDown(0), nil
+		return ratio.Div(Q32).RoundDown(0).Add(decimal.NewFromInt(1)), nil
 	} else {
 		return ratio.Div(Q32).RoundDown(0), nil
 	}

@@ -52,8 +52,8 @@ func (p *Position) Update(
 			return err
 		}
 	}
-	tokensOwed0 := feeGrowthInside0X128.Sub(p.FeeGrowthInside0LastX128).Mul(p.Liquidity).Div(Q128)
-	tokensOwed1 := feeGrowthInside1X128.Sub(p.FeeGrowthInside1LastX128).Mul(p.Liquidity).Div(Q128)
+	tokensOwed0 := feeGrowthInside0X128.Sub(p.FeeGrowthInside0LastX128).Mul(p.Liquidity).Div(Q128).RoundDown(0)
+	tokensOwed1 := feeGrowthInside1X128.Sub(p.FeeGrowthInside1LastX128).Mul(p.Liquidity).Div(Q128).RoundDown(0)
 	if !liquidityDelta.IsZero() {
 		p.Liquidity = liquidityNext
 	}

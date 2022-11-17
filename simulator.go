@@ -231,7 +231,7 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 	// pool变更落地
 	err = pm.db.Transaction(func(tx *gorm.DB) error {
 		for _, pool := range dirtyPool {
-			err := pool.Flush(tx)
+			err := pool.Flush(tx, block.Header.Number)
 			if err != nil {
 				logrus.Errorf("failed flush pool %s", err)
 				return err

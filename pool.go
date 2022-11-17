@@ -9,15 +9,19 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+	"math/big"
 	"time"
 )
 
 type FeeAmount int
 
 const (
-	FeeAmountLow    FeeAmount = 500
-	FeeAmountMedium FeeAmount = 3000
-	FeeAmountHigh   FeeAmount = 10000
+	FeeLowest FeeAmount = 100
+	FeeLow    FeeAmount = 500
+	FeeMedium FeeAmount = 3000
+	FeeHigh   FeeAmount = 10000
+
+	FeeMax FeeAmount = 1000000
 )
 
 // snapshot
@@ -276,7 +280,6 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		if err != nil {
 			return ZERO, ZERO, ZERO, err
 		}
-		logrus.Info(sqrtRatioTargetX96, _sqrtPriceX96)
 		state.sqrtPriceX96 = decimal.NewFromBigInt(_sqrtPriceX96, 0)
 		step.amountIn = decimal.NewFromBigInt(_amountIn, 0)
 		step.amountOut = decimal.NewFromBigInt(_amountOut, 0)
@@ -317,7 +320,6 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 
 			}
 			if zeroForOne {
-				// -1 -> 0, 减1又回到-1， 形成死循环
 				state.tick = step.tickNext - 1
 			} else {
 				state.tick = step.tickNext
@@ -546,10 +548,12 @@ func (p *CorePool) updatePosition(owner string, lower int, upper int, delta deci
 	return position, nil
 }
 
-func (p *CorePool) Flush(db *gorm.DB) error {
+func (p *CorePool) Flush(db *gorm.DB, bn *big.Int) error {
+	p.CurrentBlockNum = bn.Int64()
 	if p.HasCreated {
 		return db.Model(p).Updates(p).Error
 	} else {
+		p.DeployBlockNum = bn.Int64()
 		p.HasCreated = true
 		return db.Create(p).Error
 	}

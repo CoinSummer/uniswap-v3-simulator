@@ -17,13 +17,6 @@ var (
 	Q128 = decimal.NewFromInt(2).Pow(decimal.NewFromInt(128))
 	Q192 = decimal.NewFromInt(2).Pow(decimal.NewFromInt(192))
 
-	MAX_FEE = decimal.NewFromInt(10).Pow(decimal.NewFromInt(6))
-
-	TICK_SPACINGS = map[FeeAmount]int{
-		FeeAmountLow:    10,
-		FeeAmountMedium: 60,
-		FeeAmountHigh:   200,
-	}
 	MIN_TICK          int = -887272
 	MAX_TICK          int = -MIN_TICK
 	MIN_SQRT_RATIO        = decimal.NewFromInt(4295128739)
