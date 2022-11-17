@@ -237,11 +237,8 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 	} else {
 		state.feeGrowthGlobalX128 = p.FeeGrowthGlobal1X128
 	}
-	for {
-		// 达到限价或者兑换完成
-		if state.amountSpecifiedRemaining.Equal(ZERO) || state.sqrtPriceX96.Equal(sqrtPriceLimitX96) {
-			break
-		}
+	// 达到限价或者兑换完成
+	for !(state.amountSpecifiedRemaining.Equal(ZERO) || state.sqrtPriceX96.Equal(sqrtPriceLimitX96)) {
 		step := StepComputations{
 			sqrtPriceStartX96: ZERO, tickNext: 0, initialized: false, sqrtPriceNextX96: ZERO, amountIn: ZERO, amountOut: ZERO, feeAmount: ZERO}
 		step.sqrtPriceStartX96 = state.sqrtPriceX96
@@ -256,26 +253,30 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		} else if step.tickNext > MAX_TICK {
 			step.tickNext = MAX_TICK
 		}
-		step.sqrtPriceNextX96, err = GetSqrtRatioAtTick(step.tickNext)
+		sqrtPriceNextX96bi, err := utils.GetSqrtRatioAtTick(step.tickNext)
 		if err != nil {
 			return ZERO, ZERO, ZERO, err
 		}
+		step.sqrtPriceNextX96 = decimal.NewFromBigInt(sqrtPriceNextX96bi, 0)
 		var sqrtRatioTargetX96 decimal.Decimal
-		var b1 bool
 		if zeroForOne {
-			b1 = step.sqrtPriceNextX96.LessThan(sqrtPriceLimitX96)
+			if step.sqrtPriceNextX96.LessThan(sqrtPriceLimitX96) {
+				sqrtRatioTargetX96 = sqrtPriceLimitX96
+			} else {
+				sqrtRatioTargetX96 = step.sqrtPriceNextX96
+			}
 		} else {
-			b1 = step.sqrtPriceNextX96.GreaterThan(sqrtPriceLimitX96)
-		}
-		if b1 {
-			sqrtRatioTargetX96 = sqrtPriceLimitX96
-		} else {
-			sqrtRatioTargetX96 = step.sqrtPriceNextX96
+			if step.sqrtPriceNextX96.GreaterThan(sqrtPriceLimitX96) {
+				sqrtRatioTargetX96 = sqrtPriceLimitX96
+			} else {
+				sqrtRatioTargetX96 = step.sqrtPriceNextX96
+			}
 		}
 		_sqrtPriceX96, _amountIn, _amountOut, _feeAmount, err := utils.ComputeSwapStep(state.sqrtPriceX96.BigInt(), sqrtRatioTargetX96.BigInt(), state.liquidity.BigInt(), state.amountSpecifiedRemaining.BigInt(), constants.FeeAmount(p.Fee))
 		if err != nil {
 			return ZERO, ZERO, ZERO, err
 		}
+		logrus.Info(sqrtRatioTargetX96, _sqrtPriceX96)
 		state.sqrtPriceX96 = decimal.NewFromBigInt(_sqrtPriceX96, 0)
 		step.amountIn = decimal.NewFromBigInt(_amountIn, 0)
 		step.amountOut = decimal.NewFromBigInt(_amountOut, 0)

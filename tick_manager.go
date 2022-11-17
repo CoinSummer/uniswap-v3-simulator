@@ -261,19 +261,21 @@ func (tm *TickManager) isBelowSmallest(sortedTicks []*Tick, tick int) bool {
 	}
 	return tick < sortedTicks[0].TickIndex
 }
-func (tm *TickManager) binarySearch(sortedTicks []*Tick, tick int) (int, error) {
-	if tm.isBelowSmallest(sortedTicks, tick) {
-		return 0, errors.New("BELOW_SMALLEST")
+
+func (tm *TickManager) binarySearch(ticks []*Tick, tick int) (int, error) {
+	if tm.isBelowSmallest(ticks, tick) {
+		return 0, errors.New("tick is below smallest tick")
 	}
-	var l = 0
-	var r = len(sortedTicks) - 1
-	var i = 0
+
+	l := 0
+	r := len(ticks) - 1
+	var i int
 	for {
 		i = int(math.Floor(float64((l + r) / 2)))
-		if sortedTicks[i].TickIndex <= tick && (i == len(sortedTicks)-1 || sortedTicks[i+1].TickIndex > tick) {
+		if ticks[i].TickIndex <= tick && (i == len(ticks)-1 || ticks[i+1].TickIndex > tick) {
 			return i, nil
 		}
-		if sortedTicks[i].TickIndex < tick {
+		if ticks[i].TickIndex < tick {
 			l = i + 1
 		} else {
 			r = i - 1

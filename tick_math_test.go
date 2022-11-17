@@ -33,4 +33,8 @@ func TestGetTickAtSqrtRatio(t *testing.T) {
 
 	tmax, _ := GetTickAtSqrtRatio(MAX_SQRT_RATIO.Sub(ONE))
 	assert.Equal(t, tmax, MAX_TICK-1, "returns the correct value for sqrt ratio at max tick")
+
+	r, _ := new(big.Int).SetString("79228162514264337593543950336", 10)
+	tRandom, _ := GetTickAtSqrtRatio(decimal.NewFromBigInt(r, 0))
+	assert.Equal(t, tRandom, 0, "returns the correct value for sqrt ratio at random tick")
 }

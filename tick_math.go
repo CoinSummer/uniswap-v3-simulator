@@ -2,6 +2,7 @@ package uniswap_v3_simulator
 
 import (
 	"errors"
+	"fmt"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/shopspring/decimal"
 	"math"
@@ -43,6 +44,7 @@ var (
 
 func GetTickAtSqrtRatio(sqrtRatioX96D decimal.Decimal) (int, error) {
 	sqrtRatioX96 := sqrtRatioX96D.BigInt()
+	fmt.Println(sqrtRatioX96.String())
 
 	if sqrtRatioX96.Cmp(MIN_SQRT_RATIO.BigInt()) < 0 || sqrtRatioX96.Cmp(MAX_SQRT_RATIO.BigInt()) >= 0 {
 		return 0, ErrInvalidSqrtRatio
