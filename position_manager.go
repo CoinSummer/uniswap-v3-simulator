@@ -91,6 +91,15 @@ func NewPositionManager() *PositionManager {
 	}
 }
 
+func (pm *PositionManager) Clone() *PositionManager {
+	newP := NewPositionManager()
+	ps := map[string]*Position{}
+	for s, position := range pm.Positions {
+		ps[s] = position
+	}
+	newP.Positions = ps
+	return newP
+}
 func (pm *PositionManager) Set(key string, position *Position) {
 	pm.Positions[key] = position
 }

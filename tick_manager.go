@@ -32,6 +32,15 @@ func NewTick(index int) (*Tick, error) {
 	}
 }
 
+func (t *Tick) Clone() *Tick {
+	return &Tick{
+		TickIndex:             t.TickIndex,
+		LiquidityGross:        t.LiquidityGross,
+		LiquidityNet:          t.LiquidityNet,
+		FeeGrowthOutside0X128: t.FeeGrowthOutside0X128,
+		FeeGrowthOutside1X128: t.FeeGrowthOutside1X128,
+	}
+}
 func (t *Tick) Initialized() bool {
 	return !t.LiquidityGross.IsZero()
 }
@@ -97,7 +106,19 @@ func NewTickManager() *TickManager {
 		Ticks: map[int]*Tick{},
 	}
 }
+func (tm *TickManager) Clone() *TickManager {
+	var ticks map[int]*Tick
+	for k, tick := range tm.Ticks {
+		ticks[k] = tick.Clone()
+	}
+	newM := NewTickManager()
+	newM.Ticks = ticks
+	newM.SortTicks()
+	return newM
+}
+
 func (tm *TickManager) GetTickAndInitIfAbsent(index int) (*Tick, error) {
+
 	if tick, ok := tm.Ticks[index]; ok {
 		return tick, nil
 	} else {

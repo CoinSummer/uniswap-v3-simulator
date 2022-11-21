@@ -15,15 +15,6 @@ import (
 
 type FeeAmount int
 
-const (
-	FeeLowest FeeAmount = 100
-	FeeLow    FeeAmount = 500
-	FeeMedium FeeAmount = 3000
-	FeeHigh   FeeAmount = 10000
-
-	FeeMax FeeAmount = 1000000
-)
-
 // snapshot
 type Snapshot struct {
 	PoolAddress          string
@@ -102,6 +93,30 @@ func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
 		TickManager:          snapshot.TickManager,
 		PositionManager:      snapshot.PositionManager,
 	}
+}
+
+func (p *CorePool) Clone() *CorePool {
+	newPool := &CorePool{
+		PoolAddress:          p.PoolAddress,
+		HasCreated:           p.HasCreated,
+		Token0:               p.Token0,
+		Token1:               p.Token1,
+		Fee:                  p.Fee,
+		TickSpacing:          p.TickSpacing,
+		MaxLiquidityPerTick:  p.MaxLiquidityPerTick,
+		CurrentBlockNum:      p.CurrentBlockNum,
+		DeployBlockNum:       p.DeployBlockNum,
+		Token0Balance:        p.Token0Balance,
+		Token1Balance:        p.Token1Balance,
+		SqrtPriceX96:         p.SqrtPriceX96,
+		Liquidity:            p.Liquidity,
+		TickCurrent:          p.TickCurrent,
+		FeeGrowthGlobal0X128: p.FeeGrowthGlobal0X128,
+		FeeGrowthGlobal1X128: p.FeeGrowthGlobal1X128,
+		TickManager:          p.TickManager.Clone(),
+		PositionManager:      p.PositionManager.Clone(),
+	}
+	return newPool
 }
 
 func NewCorePoolFromConfig(addr string, config PoolConfig) *CorePool {
@@ -218,7 +233,6 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		if !sqrtPriceLimitX96.LessThan(p.SqrtPriceX96) {
 			return ZERO, ZERO, ZERO, errors.New("RATIO_CURRENT")
 		}
-
 	} else {
 		if !sqrtPriceLimitX96.LessThan(MAX_SQRT_RATIO) {
 			return ZERO, ZERO, ZERO, errors.New("RATIO_MAX")
@@ -227,6 +241,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 			return ZERO, ZERO, ZERO, errors.New("RATIO_CURRENT")
 		}
 	}
+
 	exactInput := amountSpecified.GreaterThanOrEqual(ZERO)
 	state := swapState{
 		amountSpecifiedRemaining: amountSpecified,
@@ -280,10 +295,12 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		if err != nil {
 			return ZERO, ZERO, ZERO, err
 		}
+
 		state.sqrtPriceX96 = decimal.NewFromBigInt(_sqrtPriceX96, 0)
 		step.amountIn = decimal.NewFromBigInt(_amountIn, 0)
 		step.amountOut = decimal.NewFromBigInt(_amountOut, 0)
 		step.feeAmount = decimal.NewFromBigInt(_feeAmount, 0)
+
 		if exactInput {
 			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Sub(step.amountIn.Add(step.feeAmount))
 			state.amountCalculated = state.amountCalculated.Sub(step.amountOut)
@@ -291,6 +308,12 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Add(step.amountOut)
 			state.amountCalculated = state.amountCalculated.Add(step.amountIn.Add(step.feeAmount))
 		}
+		fmt.Println("aaaaaaaaa")
+		fmt.Println(_amountOut)
+		fmt.Println(step.amountOut)
+		fmt.Println(state.amountCalculated)
+		fmt.Println(state.amountSpecifiedRemaining)
+		fmt.Println("aaaaaaaaa")
 		if state.liquidity.IsPositive() {
 			state.feeGrowthGlobalX128 = state.feeGrowthGlobalX128.Add(step.feeAmount.Mul(Q128).Div(state.liquidity).RoundDown(0))
 		}
@@ -350,8 +373,8 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		amount0 = amountSpecified.Sub(state.amountSpecifiedRemaining)
 		amount1 = state.amountCalculated
 	} else {
-		amount1 = amountSpecified.Sub(state.amountSpecifiedRemaining)
-		amount0 = state.amountCalculated
+		amount0 = state.amountCalculated                              // -1
+		amount1 = amountSpecified.Sub(state.amountSpecifiedRemaining) // -2
 	}
 	return amount0, amount1, state.sqrtPriceX96, nil
 }
@@ -560,15 +583,6 @@ func (p *CorePool) Flush(db *gorm.DB, bn *big.Int) error {
 }
 
 type ActionType string
-
-const (
-	INITIALIZE ActionType = "initialize"
-	MINT       ActionType = "mint"
-	BURN       ActionType = "burn"
-	COLLECT    ActionType = "collect"
-	SWAP       ActionType = "swap"
-	FORK       ActionType = "fork"
-)
 
 type Record struct {
 	Id         string
