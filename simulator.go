@@ -87,9 +87,8 @@ func NewPoolManager(startBlock int64, dbFile string, wss string, rpcs []string) 
 	return pm
 }
 
-// get pool config from node
-func (pm *Simulator) GetPoolConfig() (*PoolConfig, error) {
-	return nil, nil
+func (pm *Simulator) CurrentBlock() uint64 {
+	return pm.ingestor.CurrentBlock()
 }
 
 func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
@@ -143,6 +142,7 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 // snapshot定时持久化， 比如每10min持久化一次
 func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 	logrus.Infof("sync to block: %s", block.Header.Number)
+	//return nil
 	// 使用 block ingestor 的 transaction机制， 每个区块落盘一次
 	// position和tick分表存放
 	blockHash := block.Header.Hash()
