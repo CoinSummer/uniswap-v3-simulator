@@ -1,4 +1,4 @@
-module uniswap-v3-simulator
+module github.com/CoinSummer/uniswap-v3-simulator
 
 go 1.16
 
@@ -11,6 +11,6 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
-	gitlab.com/CoinSummer/Base/block-ingester v0.3.3
+	gitlab.com/CoinSummer/Base/block-ingester v0.3.4
 	gorm.io/gorm v1.24.0
 )
