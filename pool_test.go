@@ -1,7 +1,6 @@
 package uniswap_v3_simulator
 
 import (
-	"fmt"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/daoleno/uniswapv3-sdk/utils"
 	"github.com/stretchr/testify/assert"
@@ -30,8 +29,6 @@ func TestCorePool_computeSwapStep(t *testing.T) {
 	}, "returns the correct value for sqrt ratio at min tick")
 	assert.Condition(t, func() bool {
 		a := new(big.Int).Add(amountIn, amountOut)
-		fmt.Println(a)
-		fmt.Println(amount)
 		return a.Cmp(amount) < 0
 	}, "returns the correct value for sqrt ratio at min tick")
 

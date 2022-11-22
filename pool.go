@@ -2,7 +2,6 @@ package uniswap_v3_simulator
 
 import (
 	"errors"
-	"fmt"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/daoleno/uniswapv3-sdk/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -265,6 +264,7 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		if err != nil {
 			return ZERO, ZERO, ZERO, err
 		}
+
 		step.tickNext = tickNext
 		step.initialized = initialized
 		if step.tickNext < MIN_TICK {
@@ -308,12 +308,6 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 			state.amountSpecifiedRemaining = state.amountSpecifiedRemaining.Add(step.amountOut)
 			state.amountCalculated = state.amountCalculated.Add(step.amountIn.Add(step.feeAmount))
 		}
-		fmt.Println("aaaaaaaaa")
-		fmt.Println(_amountOut)
-		fmt.Println(step.amountOut)
-		fmt.Println(state.amountCalculated)
-		fmt.Println(state.amountSpecifiedRemaining)
-		fmt.Println("aaaaaaaaa")
 		if state.liquidity.IsPositive() {
 			state.feeGrowthGlobalX128 = state.feeGrowthGlobalX128.Add(step.feeAmount.Mul(Q128).Div(state.liquidity).RoundDown(0))
 		}
@@ -392,9 +386,6 @@ func (p *CorePool) tryToDryRun(param *UniV3SwapEvent, amountSpec decimal.Decimal
 		return false
 	}
 	result := amount0.Equal(param.Amount0) && amount1.Equal(param.Amount1) && priceX96.Equal(param.SqrtPriceX96)
-	fmt.Println(amount0, param.Amount0)
-	fmt.Println(amount1, param.Amount1)
-	fmt.Println(priceX96, param.SqrtPriceX96)
 	return result
 }
 

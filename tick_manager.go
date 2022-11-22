@@ -219,7 +219,7 @@ func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (
 		if err != nil {
 			return 0, false, err
 		}
-		nextInitializedTick := int(math.Max(float64(maximum), float64(nextTick.TickIndex)))
+		nextInitializedTick := int(math.Min(float64(maximum), float64(nextTick.TickIndex)))
 		return nextInitializedTick, nextInitializedTick == nextTick.TickIndex, nil
 	}
 }
