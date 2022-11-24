@@ -87,7 +87,8 @@ func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 		SqrtPriceX96: decimal.NewFromBigInt(sqrtPriceX96, 0),
 		Liquidity:    decimal.NewFromBigInt(liquidity, 0),
 	}
-	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
+	// 看看xiaxin怎么做的。
+	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() && parsed.Liquidity.IsZero() {
 		return nil, fmt.Errorf("swap amoun is 0: %s", log.TxHash)
 	}
 	return parsed, nil
@@ -116,9 +117,9 @@ func parseUniv3MintEvent(log *types.Log) (*UniV3MintEvent, error) {
 		Amount0:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*2:32*3]), 0),
 		Amount1:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*3:32*4]), 0),
 	}
-	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
-		return nil, fmt.Errorf("mint amount0 and amount1 == 0")
-	}
+	//if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
+	//	return nil, fmt.Errorf("mint amount0 and amount1 == 0")
+	//}
 	return parsed, nil
 }
 func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
@@ -144,9 +145,9 @@ func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
 		Amount0:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*1:32*2]), 0),
 		Amount1:   decimal.NewFromBigInt(big.NewInt(0).SetBytes(data[32*2:32*3]), 0),
 	}
-	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
-		return nil, fmt.Errorf("burn amount0 and amount1 == 0")
-	}
+	//if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() {
+	//	return nil, fmt.Errorf("burn amount0 and amount1 == 0")
+	//}
 	return parsed, nil
 }
 func parseUniv3InitializeEvent(log *types.Log) (*UniV3InitializeEvent, error) {

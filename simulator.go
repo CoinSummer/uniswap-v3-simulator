@@ -2,7 +2,6 @@ package uniswap_v3_simulator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -26,8 +25,13 @@ var (
 	TOPIC_MINT       = common.HexToHash("0x7a53080ba414158be7ec69b987b5fb7d07dee101fe85488f0853ae16239d0bde")
 )
 
+var (
+	skipAddress = []common.Address{common.HexToAddress("0xa87998484c19d68807debdc280e18424d55743a9"), common.HexToAddress("0xcba27c8e7115b4eb50aa14999bc0866674a96ecb"), common.HexToAddress("0x979f63b8279376ef8205fb536b16080cd1d45058")}
+)
+
 type Simulator struct {
 	pools        map[common.Address]*CorePool
+	dirtyPools   map[string]*CorePool
 	Abi          abi.ABI
 	InitializeID common.Hash
 	MintID       common.Hash
@@ -37,11 +41,12 @@ type Simulator struct {
 	rpc          *blockingester.EthRpcClientPool
 	wss          *ethclient.Client
 	db           *gorm.DB
+	dbfile       string
 	ctx          context.Context
 }
 
 // SYNC from univ3 created
-func NewPoolManager(startBlock int64, dbFile string, wss string, rpcs []string) *Simulator {
+func NewPoolManager(dbFile string, wss string, rpcs []string) *Simulator {
 	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
 	rpc, err := blockingester.NewClientFactory(rpcs)
 	if err != nil {
@@ -52,11 +57,13 @@ func NewPoolManager(startBlock int64, dbFile string, wss string, rpcs []string) 
 		panic(err)
 	}
 	pm := &Simulator{
-		pools: map[common.Address]*CorePool{},
-		rpc:   rpc,
-		wss:   wssClient,
-		db:    db,
-		ctx:   context.Background(),
+		pools:      map[common.Address]*CorePool{},
+		dirtyPools: map[string]*CorePool{},
+		rpc:        rpc,
+		wss:        wssClient,
+		db:         db,
+		dbfile:     dbFile,
+		ctx:        context.Background(),
 	}
 	a, err := abi.JSON(strings.NewReader(ABI))
 	if err != nil {
@@ -69,13 +76,8 @@ func NewPoolManager(startBlock int64, dbFile string, wss string, rpcs []string) 
 	pm.BurnID = a.Events["Burn"].ID
 	pm.SwapID = a.Events["Swap"].ID
 
-	ingesterDB, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", ingesterDB, wssClient, big.NewInt(startBlock), true, true, pm, context.Background())
-	pm.ingestor = ingester
 	db.AutoMigrate(&CorePool{})
+
 	var currentPool []*CorePool
 	err = db.Find(&currentPool).Error
 	if err != nil {
@@ -138,6 +140,169 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 	return pool, nil
 }
 
+func (pm *Simulator) HandleLogs(logs []types.Log) error {
+	// 有变更的pool
+	for _, log := range logs {
+		if log.Address == skipAddress[0] || log.Address == skipAddress[1] || log.Address == skipAddress[2] {
+			continue
+		}
+		topic0 := log.Topics[0]
+		if topic0 == pm.InitializeID {
+			pool, err := pm.InitPool(&log)
+			if err != nil {
+				logrus.Error(err)
+			}
+			pm.dirtyPools[pool.PoolAddress] = pool
+			pm.pools[log.Address] = pool
+		} else if topic0 == pm.MintID {
+			if pool, ok := pm.pools[log.Address]; !ok {
+				logrus.Warnf("mint before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
+				continue
+			} else {
+				mint, err := parseUniv3MintEvent(&log)
+				if err != nil {
+					logrus.Warnf("failed parse mint event, tx: %s  pool: %s", log.TxHash, log.Address)
+					continue
+				}
+				//s, _ := json.Marshal(mint)
+				//logrus.Infof("mint: %s %s %s", log.Address, log.TxHash, string(s))
+				_, _, err = pool.Mint(mint.Owner, mint.TickLower, mint.TickUpper, mint.Amount)
+				if err != nil {
+					logrus.Errorf("failed execute mint event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
+					return err
+				}
+				pm.dirtyPools[pool.PoolAddress] = pool
+			}
+		} else if topic0 == pm.BurnID {
+			if pool, ok := pm.pools[log.Address]; !ok {
+				logrus.Warnf("burn before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
+				continue
+			} else {
+				burn, err := parseUniv3BurnEvent(&log)
+				if err != nil {
+					logrus.Warnf("failed parse burn event, tx: %s  pool: %s err: %s", log.TxHash, log.Address, err)
+					continue
+				}
+				//s, _ := json.Marshal(burn)
+				//logrus.Infof("burn: %s %s %s", log.Address, log.TxHash, string(s))
+				_, _, err = pool.Burn(burn.Owner, burn.TickLower, burn.TickUpper, burn.Amount)
+				if err != nil {
+					logrus.Errorf("failed execute burn event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
+					return err
+				}
+				pm.dirtyPools[pool.PoolAddress] = pool
+			}
+		} else if topic0 == pm.SwapID {
+			if pool, ok := pm.pools[log.Address]; !ok {
+				logrus.Warnf("swap before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
+				continue
+			} else {
+				swap, err := parseUniv3SwapEvent(&log)
+				if err != nil {
+					logrus.Warnf("failed parse swap event, tx: %s  pool: %s", log.TxHash, log.Address)
+					continue
+				}
+				//s, _ := json.Marshal(swap)
+				//logrus.Infof("swap: %s %s %s", log.Address, log.TxHash, string(s))
+				amountSpecified, sqrtPriceX96, err := pool.ResolveInputFromSwapResultEvent(swap)
+				if err != nil {
+					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
+				}
+
+				_, _, _, err = pool.handleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
+				if err != nil {
+					logrus.Fatalf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
+				}
+				//fmt.Println(log.BlockNumber, pool.TickCurrent)
+				pm.dirtyPools[pool.PoolAddress] = pool
+			}
+		}
+	}
+	return nil
+}
+
+func (pm *Simulator) MaxSyncedBlockNum() (uint64, error) {
+	var lastBlock uint64
+	err := pm.db.Model(&CorePool{}).Select("max(current_block_num) as last_block").Scan(&lastBlock).Error
+	if err != nil {
+		return 0, err
+	}
+	return lastBlock, nil
+}
+
+func (pm *Simulator) FlushPools() error {
+	lastBlock, err := pm.MaxSyncedBlockNum()
+	if err != nil {
+		return err
+	}
+	// pool变更落地
+	err = pm.db.Transaction(func(tx *gorm.DB) error {
+		for _, pool := range pm.dirtyPools {
+			err := pool.Flush(tx, big.NewInt(int64(lastBlock)))
+			if err != nil {
+				logrus.Errorf("failed flush pool %s", err)
+				return err
+			}
+			logrus.Infof("flush pool: %s", pool.PoolAddress)
+		}
+		return nil
+	})
+	if err != nil {
+		logrus.Warnf("failed save snapshot %s", err)
+		return err
+	} else {
+		pm.dirtyPools = map[string]*CorePool{}
+		return nil
+	}
+}
+
+// end is inclusive
+func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
+	// 从数据库获取start, max(currentBlock)
+	lastBlock, err := pm.MaxSyncedBlockNum()
+	if err != nil {
+		return 0, err
+	}
+	if lastBlock == 0 {
+		// univ3 factory deploy
+		lastBlock = 12369620
+	}
+	start := lastBlock + 1
+	latest, err := pm.rpc.GetClient().BlockNumber(pm.ctx)
+	if err != nil {
+		return 0, err
+	}
+	end := latest
+
+	for {
+		if start > end {
+			return end, nil
+		}
+		var minEnd uint64
+		if start+step > end {
+			minEnd = end
+		} else {
+			minEnd = start + step
+		}
+		logrus.Infof("sync blocks: %d - %d", start, minEnd)
+		logs, err := pm.rpc.GetClient().FilterLogs(pm.ctx, ethereum.FilterQuery{
+			FromBlock: big.NewInt(int64(start)),
+			ToBlock:   big.NewInt(int64(minEnd)),
+			Topics:    [][]common.Hash{{pm.InitializeID, pm.MintID, pm.BurnID, pm.SwapID}},
+			//Addresses: []common.Address{common.HexToAddress("0xCba27C8e7115b4Eb50Aa14999BC0866674a96eCB")},
+		})
+		if err != nil {
+			return 0, err
+		}
+		err = pm.HandleLogs(logs)
+		if err != nil {
+			return 0, err
+		}
+		start = minEnd + 1
+	}
+
+}
+
 // todo 应该先从磁盘加载snapshot, 然后以snapshot里的blockNum作为ingester的开始block
 // snapshot定时持久化， 比如每10min持久化一次
 func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
@@ -153,101 +318,28 @@ func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
 	if err != nil {
 		return err
 	}
-	// 有变更的pool
-	dirtyPool := map[string]*CorePool{}
-
-	for _, log := range logs {
-		topic0 := log.Topics[0]
-		if topic0 == pm.InitializeID {
-			pool, err := pm.InitPool(&log)
-			if err != nil {
-				logrus.Error(err)
-			}
-			dirtyPool[pool.PoolAddress] = pool
-			pm.pools[log.Address] = pool
-		} else if topic0 == pm.MintID {
-			if pool, ok := pm.pools[log.Address]; !ok {
-				logrus.Warnf("mint before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
-				continue
-			} else {
-				mint, err := parseUniv3MintEvent(&log)
-				if err != nil {
-					logrus.Warnf("failed parse mint event, tx: %s  pool: %s", log.TxHash, log.Address)
-					continue
-				}
-				s, _ := json.Marshal(mint)
-				logrus.Infof("mint: %s %s %s", log.Address, log.TxHash, string(s))
-				_, _, err = pool.Mint(mint.Owner, mint.TickLower, mint.TickUpper, mint.Amount)
-				if err != nil {
-					logrus.Errorf("failed execute mint event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
-					return err
-				}
-				dirtyPool[pool.PoolAddress] = pool
-			}
-		} else if topic0 == pm.BurnID {
-			if pool, ok := pm.pools[log.Address]; !ok {
-				logrus.Warnf("burn before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
-				continue
-			} else {
-				burn, err := parseUniv3BurnEvent(&log)
-				if err != nil {
-					logrus.Warnf("failed parse burn event, tx: %s  pool: %s", log.TxHash, log.Address)
-					continue
-				}
-				s, _ := json.Marshal(burn)
-				logrus.Infof("burn: %s %s %s", log.Address, log.TxHash, string(s))
-				_, _, err = pool.Burn(burn.Owner, burn.TickLower, burn.TickUpper, burn.Amount)
-				if err != nil {
-					logrus.Errorf("failed execute burn event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
-					return err
-				}
-				dirtyPool[pool.PoolAddress] = pool
-			}
-		} else if topic0 == pm.SwapID {
-			if pool, ok := pm.pools[log.Address]; !ok {
-				logrus.Warnf("swap before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
-				continue
-			} else {
-				swap, err := parseUniv3SwapEvent(&log)
-				if err != nil {
-					logrus.Warnf("failed parse swap event, tx: %s  pool: %s", log.TxHash, log.Address)
-					continue
-				}
-				s, _ := json.Marshal(swap)
-				logrus.Infof("swap: %s %s %s", log.Address, log.TxHash, string(s))
-				amountSpecified, sqrtPriceX96, err := pool.ResolveInputFromSwapResultEvent(swap)
-				if err != nil {
-					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
-				}
-
-				_, _, _, err = pool.handleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
-				if err != nil {
-					logrus.Fatalf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
-				}
-				dirtyPool[pool.PoolAddress] = pool
-			}
-		}
-	}
-	// pool变更落地
-	err = pm.db.Transaction(func(tx *gorm.DB) error {
-		for _, pool := range dirtyPool {
-			err := pool.Flush(tx, block.Header.Number)
-			if err != nil {
-				logrus.Errorf("failed flush pool %s", err)
-				return err
-			}
-			logrus.Infof("flush pool: %s", pool.PoolAddress)
-		}
-		return nil
-	})
-	if err != nil {
-		logrus.Warnf("failed save snapshot %s", err)
-	}
-
-	return err
+	return pm.HandleLogs(logs)
 }
 
 // 从univ3创建区块开始同步所有pool
-func (pm *Simulator) SyncToLatestAndListen() {
+func (pm *Simulator) Run() error {
+	syncTo, err := pm.SyncHistory(10000)
+	if err != nil {
+		return err
+	}
+	pm.FlushPools()
+	ingesterDB, err := gorm.Open(sqlite.Open(pm.dbfile), &gorm.Config{})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// 旧数据自行同步了， 无需ingester
+	err = pm.db.Exec("drop table table_block_ingesters").Error
+	if err != nil {
+		return err
+	}
+
+	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", ingesterDB, pm.wss, big.NewInt(int64(syncTo+1)), true, true, pm, context.Background())
+	pm.ingestor = ingester
 	pm.ingestor.Run()
+	return nil
 }

@@ -2,6 +2,7 @@ package uniswap_v3_simulator
 
 import (
 	"errors"
+	"fmt"
 	"github.com/daoleno/uniswapv3-sdk/constants"
 	"github.com/daoleno/uniswapv3-sdk/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -62,8 +63,8 @@ type CorePool struct {
 	Fee                  FeeAmount
 	TickSpacing          int
 	MaxLiquidityPerTick  decimal.Decimal
-	CurrentBlockNum      int64
-	DeployBlockNum       int64
+	CurrentBlockNum      int64 `gorm:"index"`
+	DeployBlockNum       int64 `gorm:"index"`
 	Token0Balance        decimal.Decimal
 	Token1Balance        decimal.Decimal
 	SqrtPriceX96         decimal.Decimal
@@ -260,10 +261,12 @@ func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, 
 		step := StepComputations{
 			sqrtPriceStartX96: ZERO, tickNext: 0, initialized: false, sqrtPriceNextX96: ZERO, amountIn: ZERO, amountOut: ZERO, feeAmount: ZERO}
 		step.sqrtPriceStartX96 = state.sqrtPriceX96
+		//fmt.Println("tick params", state.tick, p.TickSpacing, zeroForOne)
 		tickNext, initialized, err := p.TickManager.GetNextInitializedTick(state.tick, p.TickSpacing, zeroForOne)
 		if err != nil {
 			return ZERO, ZERO, ZERO, err
 		}
+		//fmt.Println("next tick:", tickNext)
 
 		step.tickNext = tickNext
 		step.initialized = initialized
@@ -386,12 +389,18 @@ func (p *CorePool) tryToDryRun(param *UniV3SwapEvent, amountSpec decimal.Decimal
 		return false
 	}
 	result := amount0.Equal(param.Amount0) && amount1.Equal(param.Amount1) && priceX96.Equal(param.SqrtPriceX96)
+	if param.RawEvent.Address == common.HexToAddress("0xCba27C8e7115b4Eb50Aa14999BC0866674a96eCB") {
+		fmt.Println(amount0, param.Amount0)
+		fmt.Println(amount1, param.Amount1)
+		fmt.Println(sqrtPriceLimitX96, param.SqrtPriceX96)
+	}
 	return result
 }
 
 func incTowardsInfinity(d decimal.Decimal) decimal.Decimal {
 	if d.IsZero() {
-		logrus.Fatal(d)
+		return d
+		//logrus.Fatal(d)
 	}
 	if d.IsPositive() {
 		return d.Add(ONE)
@@ -400,7 +409,9 @@ func incTowardsInfinity(d decimal.Decimal) decimal.Decimal {
 	}
 }
 func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decimal.Decimal, *decimal.Decimal, error) {
+
 	solution1 := SwapSolution{SqrtPriceLimitX96: &param.SqrtPriceX96}
+	//logrus.Infof(param.RawEvent.TxHash.String())
 	if param.Liquidity.IsZero() {
 		solution1.AmountSpecified = incTowardsInfinity(param.Amount0)
 	} else {
@@ -418,12 +429,12 @@ func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decim
 	solution4 := SwapSolution{SqrtPriceLimitX96: nil, AmountSpecified: param.Amount1}
 	solutionList := []SwapSolution{solution3, solution4}
 	if !param.SqrtPriceX96.Equal(p.SqrtPriceX96) {
-		if param.Liquidity.Equal(decimal.NewFromInt(-1)) {
-			solution5 := SwapSolution{AmountSpecified: param.Amount0, SqrtPriceLimitX96: &param.SqrtPriceX96}
-			solution6 := SwapSolution{AmountSpecified: param.Amount1, SqrtPriceLimitX96: &param.SqrtPriceX96}
-			solutionList = append(solutionList, solution5)
-			solutionList = append(solutionList, solution6)
-		}
+		//if param.Liquidity.Equal(decimal.NewFromInt(-1)) {
+		solution5 := SwapSolution{AmountSpecified: param.Amount0, SqrtPriceLimitX96: &param.SqrtPriceX96}
+		solution6 := SwapSolution{AmountSpecified: param.Amount1, SqrtPriceLimitX96: &param.SqrtPriceX96}
+		solutionList = append(solutionList, solution5)
+		solutionList = append(solutionList, solution6)
+		//}
 		solutionList = append(solutionList, solution1)
 		solutionList = append(solutionList, solution2)
 	}
@@ -432,7 +443,8 @@ func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decim
 			return solution.AmountSpecified, solution.SqrtPriceLimitX96, nil
 		}
 	}
-	logrus.Fatal("failed find swap solution")
+
+	logrus.Fatal("failed find swap solution", param.RawEvent.TxHash)
 	return ZERO, nil, nil
 }
 

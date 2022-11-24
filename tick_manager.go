@@ -133,7 +133,7 @@ func (tm *TickManager) GetTickAndInitIfAbsent(index int) (*Tick, error) {
 }
 func (tm *TickManager) GetTickReadonly(index int) (*Tick, error) {
 	if tick, ok := tm.Ticks[index]; ok {
-		return tick, nil
+		return tick.Clone(), nil
 	} else {
 		tick, err := NewTick(index)
 		if err != nil {
@@ -275,7 +275,7 @@ func (tm *TickManager) isAtOrAboveLargest(sortedTicks []*Tick, tick int) bool {
 	if len(sortedTicks) == 0 {
 		return false
 	}
-	return tick > sortedTicks[len(sortedTicks)-1].TickIndex
+	return tick >= sortedTicks[len(sortedTicks)-1].TickIndex
 }
 
 func (tm *TickManager) isBelowSmallest(sortedTicks []*Tick, tick int) bool {
@@ -292,9 +292,9 @@ func (tm *TickManager) binarySearch(ticks []*Tick, tick int) (int, error) {
 
 	l := 0
 	r := len(ticks) - 1
-	var i int
+	i := 0
 	for {
-		i = int(math.Floor(float64((l + r) / 2)))
+		i = int(math.Floor(float64(l+r) / 2))
 		if ticks[i].TickIndex <= tick && (i == len(ticks)-1 || ticks[i+1].TickIndex > tick) {
 			return i, nil
 		}

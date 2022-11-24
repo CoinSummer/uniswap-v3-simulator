@@ -117,7 +117,8 @@ func (pm *PositionManager) GetPositionAndInitIfAbsent(key string) *Position {
 func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int, tickUpper int) *Position {
 	key := GetPositionKey(owner, tickLower, tickUpper)
 	if v, ok := pm.Positions[key]; ok {
-		return v.Clone()
+		// todo : clone? or not.
+		return v
 	}
 	return NewPosition()
 }
