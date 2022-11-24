@@ -9,7 +9,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-	"math/big"
 	"time"
 )
 
@@ -63,8 +62,8 @@ type CorePool struct {
 	Fee                  FeeAmount
 	TickSpacing          int
 	MaxLiquidityPerTick  decimal.Decimal
-	CurrentBlockNum      int64 `gorm:"index"`
-	DeployBlockNum       int64 `gorm:"index"`
+	CurrentBlockNum      uint64 `gorm:"index"`
+	DeployBlockNum       uint64 `gorm:"index"`
 	Token0Balance        decimal.Decimal
 	Token1Balance        decimal.Decimal
 	SqrtPriceX96         decimal.Decimal
@@ -214,7 +213,7 @@ type StepComputations struct {
 	feeAmount         decimal.Decimal
 }
 
-func (p *CorePool) handleSwap(zeroForOne bool, amountSpecified decimal.Decimal, optionalSqrtPriceLimitX96 *decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
+func (p *CorePool) HandleSwap(zeroForOne bool, amountSpecified decimal.Decimal, optionalSqrtPriceLimitX96 *decimal.Decimal, isStatic bool) (decimal.Decimal, decimal.Decimal, decimal.Decimal, error) {
 	var sqrtPriceLimitX96 decimal.Decimal
 	if optionalSqrtPriceLimitX96 == nil {
 		if zeroForOne {
@@ -383,7 +382,7 @@ type SwapSolution struct {
 
 func (p *CorePool) tryToDryRun(param *UniV3SwapEvent, amountSpec decimal.Decimal, sqrtPriceLimitX96 *decimal.Decimal) bool {
 	var zeroForOne = param.Amount0.IsPositive()
-	amount0, amount1, priceX96, err := p.handleSwap(zeroForOne, amountSpec, sqrtPriceLimitX96, true)
+	amount0, amount1, priceX96, err := p.HandleSwap(zeroForOne, amountSpec, sqrtPriceLimitX96, true)
 	if err != nil {
 		logrus.Error(err)
 		return false
@@ -574,12 +573,10 @@ func (p *CorePool) updatePosition(owner string, lower int, upper int, delta deci
 	return position, nil
 }
 
-func (p *CorePool) Flush(db *gorm.DB, bn *big.Int) error {
-	p.CurrentBlockNum = bn.Int64()
+func (p *CorePool) Flush(db *gorm.DB) error {
 	if p.HasCreated {
 		return db.Model(p).Updates(p).Error
 	} else {
-		p.DeployBlockNum = bn.Int64()
 		p.HasCreated = true
 		return db.Create(p).Error
 	}

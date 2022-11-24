@@ -152,6 +152,8 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			if err != nil {
 				logrus.Error(err)
 			}
+			pool.DeployBlockNum = log.BlockNumber
+			pool.CurrentBlockNum = log.BlockNumber
 			pm.dirtyPools[pool.PoolAddress] = pool
 			pm.pools[log.Address] = pool
 		} else if topic0 == pm.MintID {
@@ -171,6 +173,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 					logrus.Errorf("failed execute mint event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
 					return err
 				}
+				pool.CurrentBlockNum = log.BlockNumber
 				pm.dirtyPools[pool.PoolAddress] = pool
 			}
 		} else if topic0 == pm.BurnID {
@@ -190,6 +193,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 					logrus.Errorf("failed execute burn event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
 					return err
 				}
+				pool.CurrentBlockNum = log.BlockNumber
 				pm.dirtyPools[pool.PoolAddress] = pool
 			}
 		} else if topic0 == pm.SwapID {
@@ -209,11 +213,11 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
 				}
 
-				_, _, _, err = pool.handleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
+				_, _, _, err = pool.HandleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
 				if err != nil {
 					logrus.Fatalf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
 				}
-				//fmt.Println(log.BlockNumber, pool.TickCurrent)
+				pool.CurrentBlockNum = log.BlockNumber
 				pm.dirtyPools[pool.PoolAddress] = pool
 			}
 		}
@@ -222,23 +226,22 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 }
 
 func (pm *Simulator) MaxSyncedBlockNum() (uint64, error) {
-	var lastBlock uint64
+	var lastBlock *uint64
 	err := pm.db.Model(&CorePool{}).Select("max(current_block_num) as last_block").Scan(&lastBlock).Error
 	if err != nil {
 		return 0, err
 	}
-	return lastBlock, nil
+	if lastBlock == nil {
+		return 0, nil
+	}
+	return *lastBlock, nil
 }
 
 func (pm *Simulator) FlushPools() error {
-	lastBlock, err := pm.MaxSyncedBlockNum()
-	if err != nil {
-		return err
-	}
 	// pool变更落地
-	err = pm.db.Transaction(func(tx *gorm.DB) error {
+	err := pm.db.Transaction(func(tx *gorm.DB) error {
 		for _, pool := range pm.dirtyPools {
-			err := pool.Flush(tx, big.NewInt(int64(lastBlock)))
+			err := pool.Flush(tx)
 			if err != nil {
 				logrus.Errorf("failed flush pool %s", err)
 				return err
@@ -273,11 +276,13 @@ func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
 		return 0, err
 	}
 	end := latest
+	flushStep := 0
 
 	for {
 		if start > end {
 			return end, nil
 		}
+		flushStep += 1
 		var minEnd uint64
 		if start+step > end {
 			minEnd = end
@@ -298,7 +303,15 @@ func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
+		// 每10w block flush一次
+		if flushStep%10 == 0 {
+			err = pm.FlushPools()
+			if err != nil {
+				return 0, err
+			}
+		}
 		start = minEnd + 1
+
 	}
 
 }
@@ -327,7 +340,10 @@ func (pm *Simulator) Run() error {
 	if err != nil {
 		return err
 	}
-	pm.FlushPools()
+	err = pm.FlushPools()
+	if err != nil {
+		return err
+	}
 	ingesterDB, err := gorm.Open(sqlite.Open(pm.dbfile), &gorm.Config{})
 	if err != nil {
 		logrus.Fatal(err)
@@ -342,4 +358,17 @@ func (pm *Simulator) Run() error {
 	pm.ingestor = ingester
 	pm.ingestor.Run()
 	return nil
+}
+
+func (pm *Simulator) ForkPool(blockNum uint64, poolAddress string) (*CorePool, error) {
+
+	if pool, ok := pm.pools[common.HexToAddress(poolAddress)]; !ok {
+		return nil, fmt.Errorf("pool not exists %s", poolAddress)
+	} else {
+		if pm.CurrentBlock() != blockNum {
+			return nil, fmt.Errorf("simulation req at %d , but simulator's block at %d", blockNum, pm.CurrentBlock())
+		}
+		fork := pool.Clone()
+		return fork, nil
+	}
 }

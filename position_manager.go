@@ -95,7 +95,7 @@ func (pm *PositionManager) Clone() *PositionManager {
 	newP := NewPositionManager()
 	ps := map[string]*Position{}
 	for s, position := range pm.Positions {
-		ps[s] = position
+		ps[s] = position.Clone()
 	}
 	newP.Positions = ps
 	return newP
