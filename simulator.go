@@ -14,6 +14,7 @@ import (
 	blockingester "gitlab.com/CoinSummer/Base/block-ingester"
 	"gorm.io/gorm"
 	"math/big"
+	"os"
 	"strings"
 )
 
@@ -71,12 +72,14 @@ func NewPoolManager(dbFile string, wss string, rpcs []string) *Simulator {
 	}
 	pm.Abi = a
 	pm.InitializeID = a.Events["Initialize"].ID
-	logrus.Infof(pm.InitializeID.String())
 	pm.MintID = a.Events["Mint"].ID
 	pm.BurnID = a.Events["Burn"].ID
 	pm.SwapID = a.Events["Swap"].ID
 
-	db.AutoMigrate(&CorePool{})
+	err = db.AutoMigrate(&CorePool{})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	var currentPool []*CorePool
 	err = db.Find(&currentPool).Error
@@ -105,7 +108,6 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 
 	logrus.Infof("initialize pool: %s,  tx: %s, price: %s", log.Address, log.TxHash, initialze.SqrtPriceX96)
 	price := initialze.SqrtPriceX96
-	//tick := initialze.tick
 	client, err := NewUniswapV3SimulatorCaller(log.Address, pm.rpc.GetClient())
 	if err != nil {
 		return nil, err
@@ -127,12 +129,12 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 		return nil, err
 	}
 
-	pool := NewCorePoolFromConfig(log.Address.String(), PoolConfig{
-		TickSpacing: tickSpacing.Int64(),
-		Token0:      token0,
-		Token1:      token1,
-		Fee:         FeeAmount(fee.Int64()),
-	})
+	pool := NewCorePoolFromConfig(log.Address.String(), *NewPoolConfig(
+		tickSpacing.Int64(),
+		token0,
+		token1,
+		FeeAmount(fee.Int64()),
+	))
 	err = pool.Initialize(price)
 	if err != nil {
 		return nil, err
@@ -151,6 +153,11 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			pool, err := pm.InitPool(&log)
 			if err != nil {
 				logrus.Error(err)
+				if err.Error() == "execution reverted" {
+					continue
+				} else {
+					logrus.Fatal(err)
+				}
 			}
 			pool.DeployBlockNum = log.BlockNumber
 			pool.CurrentBlockNum = log.BlockNumber
@@ -158,7 +165,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			pm.pools[log.Address] = pool
 		} else if topic0 == pm.MintID {
 			if pool, ok := pm.pools[log.Address]; !ok {
-				logrus.Warnf("mint before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
+				//logrus.Warnf("mint before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
 				mint, err := parseUniv3MintEvent(&log)
@@ -178,7 +185,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			}
 		} else if topic0 == pm.BurnID {
 			if pool, ok := pm.pools[log.Address]; !ok {
-				logrus.Warnf("burn before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
+				//logrus.Warnf("burn before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
 				burn, err := parseUniv3BurnEvent(&log)
@@ -198,7 +205,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			}
 		} else if topic0 == pm.SwapID {
 			if pool, ok := pm.pools[log.Address]; !ok {
-				logrus.Warnf("swap before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
+				//logrus.Warnf("swap before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
 				swap, err := parseUniv3SwapEvent(&log)
@@ -309,6 +316,14 @@ func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
 			if err != nil {
 				return 0, err
 			}
+			bytesRead, err := os.ReadFile(pm.dbfile)
+			if err != nil {
+				logrus.Errorf("failed read db file %s", err)
+			}
+			err = os.WriteFile(fmt.Sprintf("%s.snapshot-%d", pm.dbfile, minEnd), bytesRead, 0755)
+			if err != nil {
+				logrus.Errorf("failed write snapshot file %s", err)
+			}
 		}
 		start = minEnd + 1
 
@@ -351,7 +366,7 @@ func (pm *Simulator) Run() error {
 	// 旧数据自行同步了， 无需ingester
 	err = pm.db.Exec("drop table table_block_ingesters").Error
 	if err != nil {
-		return err
+		logrus.Warnf("failed drop ingester table %s", err)
 	}
 
 	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", ingesterDB, pm.wss, big.NewInt(int64(syncTo+1)), true, true, pm, context.Background())

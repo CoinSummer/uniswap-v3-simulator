@@ -14,22 +14,6 @@ import (
 
 type FeeAmount int
 
-// snapshot
-type Snapshot struct {
-	PoolAddress          string
-	PoolConfig           *PoolConfig
-	Token0Balance        decimal.Decimal
-	Token1Balance        decimal.Decimal
-	SqrtPriceX96         decimal.Decimal
-	Liquidity            decimal.Decimal
-	TickCurrent          int
-	FeeGrowthGlobal0X128 decimal.Decimal
-	FeeGrowthGlobal1X128 decimal.Decimal
-	TickManager          *TickManager
-	PositionManager      *PositionManager
-	Timestamp            time.Time
-}
-
 // pool config
 type PoolConfig struct {
 	TickSpacing int64
@@ -73,25 +57,6 @@ type CorePool struct {
 	FeeGrowthGlobal1X128 decimal.Decimal
 	TickManager          *TickManager
 	PositionManager      *PositionManager
-}
-
-func NewCorePoolFromSnapshot(snapshot Snapshot) *CorePool {
-	return &CorePool{
-		Token0:               snapshot.PoolConfig.Token0.String(),
-		Token1:               snapshot.PoolConfig.Token1.String(),
-		Fee:                  snapshot.PoolConfig.Fee,
-		TickSpacing:          int(snapshot.PoolConfig.TickSpacing),
-		MaxLiquidityPerTick:  TickSpacingToMaxLiquidityPerTick(int(snapshot.PoolConfig.TickSpacing)),
-		Token0Balance:        snapshot.Token0Balance,
-		Token1Balance:        snapshot.Token1Balance,
-		SqrtPriceX96:         snapshot.SqrtPriceX96,
-		Liquidity:            snapshot.Liquidity,
-		TickCurrent:          snapshot.TickCurrent,
-		FeeGrowthGlobal0X128: snapshot.FeeGrowthGlobal0X128,
-		FeeGrowthGlobal1X128: snapshot.FeeGrowthGlobal1X128,
-		TickManager:          snapshot.TickManager,
-		PositionManager:      snapshot.PositionManager,
-	}
 }
 
 func (p *CorePool) Clone() *CorePool {
@@ -443,7 +408,7 @@ func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decim
 		}
 	}
 
-	logrus.Fatal("failed find swap solution", param.RawEvent.TxHash)
+	logrus.Fatal("failed find swap solution", param.RawEvent.TxHash, param.RawEvent.Address)
 	return ZERO, nil, nil
 }
 
@@ -575,7 +540,18 @@ func (p *CorePool) updatePosition(owner string, lower int, upper int, delta deci
 
 func (p *CorePool) Flush(db *gorm.DB) error {
 	if p.HasCreated {
-		return db.Model(p).Updates(p).Error
+		return db.Model(p).Updates(map[string]interface{}{
+			"current_block_num":       p.CurrentBlockNum,
+			"token0_balance":          p.Token0Balance,
+			"token1_balance":          p.Token1Balance,
+			"sqrt_price_x96":          p.SqrtPriceX96,
+			"liquidity":               p.Liquidity,
+			"tick_current":            p.TickCurrent,
+			"fee_growth_global0_x128": p.FeeGrowthGlobal0X128,
+			"fee_growth_global1_x128": p.FeeGrowthGlobal1X128,
+			"tick_manager":            p.TickManager,
+			"position_manager":        p.PositionManager,
+		}).Error
 	} else {
 		p.HasCreated = true
 		return db.Create(p).Error

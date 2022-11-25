@@ -118,7 +118,7 @@ func (pm *PositionManager) GetPositionReadonly(owner string, tickLower int, tick
 	key := GetPositionKey(owner, tickLower, tickUpper)
 	if v, ok := pm.Positions[key]; ok {
 		// todo : clone? or not.
-		return v
+		return v.Clone()
 	}
 	return NewPosition()
 }
@@ -176,7 +176,7 @@ func (j *PositionManager) Scan(value interface{}) error {
 	return err
 }
 
-func (j PositionManager) Value() (driver.Value, error) {
+func (j *PositionManager) Value() (driver.Value, error) {
 	bs, err := json.Marshal(j)
 	if err != nil {
 		return nil, err

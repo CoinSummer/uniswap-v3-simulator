@@ -98,7 +98,7 @@ func (t *Tick) Cross(
 
 type TickManager struct {
 	Ticks       map[int]*Tick `json:"ticks"`
-	SortedTicks []*Tick       `json:"sorted_ticks"`
+	SortedTicks []*Tick       `json:"-"`
 }
 
 func NewTickManager() *TickManager {
@@ -326,10 +326,13 @@ func (j *TickManager) Scan(value interface{}) error {
 	default:
 		err = errors.New(fmt.Sprint("Failed to unmarshal TickManager value:", value))
 	}
+	if err == nil {
+		j.SortTicks()
+	}
 	return err
 }
 
-func (j TickManager) Value() (driver.Value, error) {
+func (j *TickManager) Value() (driver.Value, error) {
 	bs, err := json.Marshal(j)
 	if err != nil {
 		return nil, err
