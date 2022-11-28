@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
-	blockingester "gitlab.com/CoinSummer/Base/block-ingester"
 	"gorm.io/gorm"
 	"math/big"
 	"os"
@@ -38,30 +37,22 @@ type Simulator struct {
 	MintID       common.Hash
 	BurnID       common.Hash
 	SwapID       common.Hash
-	ingestor     *blockingester.BlockIngester
-	rpc          *blockingester.EthRpcClientPool
-	wss          *ethclient.Client
+	rpc          *ethclient.Client
 	db           *gorm.DB
 	dbfile       string
 	ctx          context.Context
 }
 
-// SYNC from univ3 created
-func NewPoolManager(dbFile string, wss string, rpcs []string) *Simulator {
+func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
 	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
-	rpc, err := blockingester.NewClientFactory(rpcs)
+	rpc, err := ethclient.Dial(rpcUrl)
 	if err != nil {
-		panic(err)
-	}
-	wssClient, err := ethclient.Dial(wss)
-	if err != nil {
-		panic(err)
+		logrus.Fatal(err)
 	}
 	pm := &Simulator{
 		pools:      map[common.Address]*CorePool{},
 		dirtyPools: map[string]*CorePool{},
 		rpc:        rpc,
-		wss:        wssClient,
 		db:         db,
 		dbfile:     dbFile,
 		ctx:        context.Background(),
@@ -92,8 +83,8 @@ func NewPoolManager(dbFile string, wss string, rpcs []string) *Simulator {
 	return pm
 }
 
-func (pm *Simulator) CurrentBlock() uint64 {
-	return pm.ingestor.CurrentBlock()
+func (pm *Simulator) CurrentBlock() (uint64, error) {
+	return pm.rpc.BlockNumber(pm.ctx)
 }
 
 func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
@@ -108,7 +99,7 @@ func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
 
 	logrus.Infof("initialize pool: %s,  tx: %s, price: %s", log.Address, log.TxHash, initialze.SqrtPriceX96)
 	price := initialze.SqrtPriceX96
-	client, err := NewUniswapV3SimulatorCaller(log.Address, pm.rpc.GetClient())
+	client, err := NewUniswapV3SimulatorCaller(log.Address, pm.rpc)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +258,7 @@ func (pm *Simulator) FlushPools() error {
 }
 
 // end is inclusive
-func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
+func (pm *Simulator) SyncBlocks(to uint64, step uint64) (uint64, error) {
 	// 从数据库获取start, max(currentBlock)
 	lastBlock, err := pm.MaxSyncedBlockNum()
 	if err != nil {
@@ -278,11 +269,18 @@ func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
 		lastBlock = 12369620
 	}
 	start := lastBlock + 1
-	latest, err := pm.rpc.GetClient().BlockNumber(pm.ctx)
-	if err != nil {
-		return 0, err
+	var end uint64
+	if to == 0 {
+		latest, err := pm.rpc.BlockNumber(pm.ctx)
+		if err != nil {
+			return 0, err
+		}
+		end = latest
+	} else {
+		end = to
 	}
-	end := latest
+
+	// 每step个区块持久化一次
 	flushStep := 0
 
 	for {
@@ -297,7 +295,7 @@ func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
 			minEnd = start + step
 		}
 		logrus.Infof("sync blocks: %d - %d", start, minEnd)
-		logs, err := pm.rpc.GetClient().FilterLogs(pm.ctx, ethereum.FilterQuery{
+		logs, err := pm.rpc.FilterLogs(pm.ctx, ethereum.FilterQuery{
 			FromBlock: big.NewInt(int64(start)),
 			ToBlock:   big.NewInt(int64(minEnd)),
 			Topics:    [][]common.Hash{{pm.InitializeID, pm.MintID, pm.BurnID, pm.SwapID}},
@@ -331,27 +329,13 @@ func (pm *Simulator) SyncHistory(step uint64) (uint64, error) {
 
 }
 
-// todo 应该先从磁盘加载snapshot, 然后以snapshot里的blockNum作为ingester的开始block
-// snapshot定时持久化， 比如每10min持久化一次
-func (pm *Simulator) HandleBlock(block *blockingester.NewBlockMsg) error {
-	logrus.Infof("sync to block: %s", block.Header.Number)
-	//return nil
-	// 使用 block ingestor 的 transaction机制， 每个区块落盘一次
-	// position和tick分表存放
-	blockHash := block.Header.Hash()
-	logs, err := pm.rpc.GetClient().FilterLogs(pm.ctx, ethereum.FilterQuery{
-		BlockHash: &blockHash,
-		Topics:    [][]common.Hash{{pm.InitializeID, pm.MintID, pm.BurnID, pm.SwapID}},
-	})
-	if err != nil {
-		return err
-	}
-	return pm.HandleLogs(logs)
+func (pm *Simulator) SyncTo(blockNum uint64) (uint64, error) {
+	return pm.SyncBlocks(blockNum, 10000)
 }
 
-// 从univ3创建区块开始同步所有pool
-func (pm *Simulator) Run() error {
-	syncTo, err := pm.SyncHistory(10000)
+// 同步历史区块到latest并持久化
+func (pm *Simulator) Init() error {
+	_, err := pm.SyncBlocks(0, 10000)
 	if err != nil {
 		return err
 	}
@@ -359,19 +343,6 @@ func (pm *Simulator) Run() error {
 	if err != nil {
 		return err
 	}
-	ingesterDB, err := gorm.Open(sqlite.Open(pm.dbfile), &gorm.Config{})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	// 旧数据自行同步了， 无需ingester
-	err = pm.db.Exec("drop table table_block_ingesters").Error
-	if err != nil {
-		logrus.Warnf("failed drop ingester table %s", err)
-	}
-
-	ingester := blockingester.LoadOrCreateBlockIngester("arbitary", ingesterDB, pm.wss, big.NewInt(int64(syncTo+1)), true, true, pm, context.Background())
-	pm.ingestor = ingester
-	pm.ingestor.Run()
 	return nil
 }
 
@@ -380,8 +351,12 @@ func (pm *Simulator) ForkPool(blockNum uint64, poolAddress string) (*CorePool, e
 	if pool, ok := pm.pools[common.HexToAddress(poolAddress)]; !ok {
 		return nil, fmt.Errorf("pool not exists %s", poolAddress)
 	} else {
-		if pm.CurrentBlock() != blockNum {
-			return nil, fmt.Errorf("simulation req at %d , but simulator's block at %d", blockNum, pm.CurrentBlock())
+		currentBlockNum, err := pm.CurrentBlock()
+		if err != nil {
+			return nil, err
+		}
+		if currentBlockNum != blockNum {
+			return nil, fmt.Errorf("simulation req at %d , but simulator's block at %d", blockNum, currentBlockNum)
 		}
 		fork := pool.Clone()
 		return fork, nil

@@ -11,6 +11,5 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
-	gitlab.com/CoinSummer/Base/block-ingester v0.3.5
 	gorm.io/gorm v1.24.0
 )
