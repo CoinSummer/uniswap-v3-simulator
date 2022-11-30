@@ -107,7 +107,7 @@ func NewTickManager() *TickManager {
 	}
 }
 func (tm *TickManager) Clone() *TickManager {
-	var ticks map[int]*Tick
+	ticks := make(map[int]*Tick, len(tm.Ticks))
 	for k, tick := range tm.Ticks {
 		ticks[k] = tick.Clone()
 	}
