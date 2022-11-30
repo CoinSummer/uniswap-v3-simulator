@@ -12,9 +12,12 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"log"
 	"math/big"
 	"os"
 	"strings"
+	"time"
 )
 
 var (
@@ -44,7 +47,17 @@ type Simulator struct {
 }
 
 func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
-	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold:             100 * time.Second, // Slow SQL threshold
+				LogLevel:                  logger.Error,      // Log level
+				IgnoreRecordNotFoundError: true,              // Ignore ErrRecordNotFound error for sugaredLogger
+				Colorful:                  true,              // Disable color
+			},
+		),
+	})
 	rpc, err := ethclient.Dial(rpcUrl)
 	if err != nil {
 		logrus.Fatal(err)
