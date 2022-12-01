@@ -103,11 +103,7 @@ func (pm *Simulator) CurrentBlock() uint64 {
 	return pm.currentBlock
 }
 
-func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
-	if _, exist := pm.pools[log.Address]; exist {
-		return nil, fmt.Errorf("pool exists %s", log.Address)
-	}
-
+func (pm *Simulator) NewPool(log *types.Log) (*CorePool, error) {
 	initialze, err := parseUniv3InitializeEvent(log)
 	if err != nil {
 		return nil, err
@@ -157,7 +153,10 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 		}
 		topic0 := log.Topics[0]
 		if topic0 == pm.InitializeID {
-			pool, err := pm.InitPool(&log)
+			if _, exist := pm.pools[log.Address]; exist {
+				return fmt.Errorf("pool exists %s", log.Address)
+			}
+			pool, err := pm.NewPool(&log)
 			if err != nil {
 				logrus.Error(err)
 				if err.Error() == "execution reverted" {
@@ -368,14 +367,14 @@ func (pm *Simulator) Init() error {
 	return nil
 }
 
-func (pm *Simulator) ForkPool(blockNum uint64, poolAddress string) (*CorePool, error) {
-	if pool, ok := pm.pools[common.HexToAddress(poolAddress)]; !ok {
+func (pm *Simulator) ForkPool(poolAddress common.Address) (*CorePool, error) {
+	if pool, ok := pm.pools[poolAddress]; !ok {
 		return nil, fmt.Errorf("pool not exists %s", poolAddress)
 	} else {
-		currentBlockNum := pm.CurrentBlock()
-		if currentBlockNum != blockNum {
-			return nil, fmt.Errorf("fork pool at %d , but current synced block is %d", blockNum, currentBlockNum)
-		}
+		//currentBlockNum := pm.CurrentBlock()
+		//if currentBlockNum != blockNum {
+		//	return nil, fmt.Errorf("fork pool at %d , but current synced block is %d", blockNum, currentBlockNum)
+		//}
 		fork := pool.Clone()
 		return fork, nil
 	}
