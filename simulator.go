@@ -99,8 +99,8 @@ func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
 	return pm
 }
 
-func (pm *Simulator) CurrentBlock() (uint64, error) {
-	return pm.rpc.BlockNumber(pm.ctx)
+func (pm *Simulator) CurrentBlock() uint64 {
+	return pm.currentBlock
 }
 
 func (pm *Simulator) InitPool(log *types.Log) (*CorePool, error) {
@@ -369,14 +369,10 @@ func (pm *Simulator) Init() error {
 }
 
 func (pm *Simulator) ForkPool(blockNum uint64, poolAddress string) (*CorePool, error) {
-
 	if pool, ok := pm.pools[common.HexToAddress(poolAddress)]; !ok {
 		return nil, fmt.Errorf("pool not exists %s", poolAddress)
 	} else {
-		currentBlockNum, err := pm.CurrentBlock()
-		if err != nil {
-			return nil, err
-		}
+		currentBlockNum := pm.CurrentBlock()
 		if currentBlockNum != blockNum {
 			return nil, fmt.Errorf("fork pool at %d , but current synced block is %d", blockNum, currentBlockNum)
 		}
