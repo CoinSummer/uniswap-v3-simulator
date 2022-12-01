@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -33,6 +34,7 @@ var (
 )
 
 type Simulator struct {
+	lock         sync.Mutex
 	pools        map[common.Address]*CorePool
 	dirtyPools   map[string]*CorePool
 	Abi          abi.ABI
@@ -273,6 +275,8 @@ func (pm *Simulator) FlushPools() error {
 // end is inclusive
 func (pm *Simulator) SyncBlocks(to uint64, step uint64) (uint64, error) {
 	// 从数据库获取start, max(currentBlock)
+	pm.lock.Lock()
+	defer pm.lock.Unlock()
 	lastBlock, err := pm.MaxSyncedBlockNum()
 	if err != nil {
 		return 0, err
@@ -369,7 +373,7 @@ func (pm *Simulator) ForkPool(blockNum uint64, poolAddress string) (*CorePool, e
 			return nil, err
 		}
 		if currentBlockNum != blockNum {
-			return nil, fmt.Errorf("simulation req at %d , but simulator's block at %d", blockNum, currentBlockNum)
+			return nil, fmt.Errorf("fork pool at %d , but current synced block is %d", blockNum, currentBlockNum)
 		}
 		fork := pool.Clone()
 		return fork, nil

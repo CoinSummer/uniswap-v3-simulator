@@ -194,6 +194,9 @@ func (tm *TickManager) GetSortedTicks() []*Tick {
 
 func (tm *TickManager) GetNextInitializedTick(tick, tickSpacing int, lte bool) (int, bool, error) {
 	sortedTicks := tm.SortedTicks
+	if len(sortedTicks) == 0 {
+		return 0, false, fmt.Errorf("empty ticks")
+	}
 
 	compressed := int(math.Floor(float64(tick) / float64(tickSpacing)))
 
