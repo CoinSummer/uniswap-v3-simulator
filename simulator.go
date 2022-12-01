@@ -36,7 +36,7 @@ var (
 type Simulator struct {
 	lock         sync.Mutex
 	currentBlock uint64
-	pools        map[common.Address]*CorePool
+	Pools        map[common.Address]*CorePool
 	dirtyPools   map[string]*CorePool
 	Abi          abi.ABI
 	InitializeID common.Hash
@@ -66,7 +66,7 @@ func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
 		logrus.Fatal(err)
 	}
 	pm := &Simulator{
-		pools:      map[common.Address]*CorePool{},
+		Pools:      map[common.Address]*CorePool{},
 		dirtyPools: map[string]*CorePool{},
 		rpc:        rpc,
 		db:         db,
@@ -94,7 +94,7 @@ func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
 		logrus.Fatal(err)
 	}
 	for _, pool := range currentPool {
-		pm.pools[common.HexToAddress(pool.PoolAddress)] = pool
+		pm.Pools[common.HexToAddress(pool.PoolAddress)] = pool
 	}
 	return pm
 }
@@ -153,7 +153,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 		}
 		topic0 := log.Topics[0]
 		if topic0 == pm.InitializeID {
-			if _, exist := pm.pools[log.Address]; exist {
+			if _, exist := pm.Pools[log.Address]; exist {
 				return fmt.Errorf("pool exists %s", log.Address)
 			}
 			pool, err := pm.NewPool(&log)
@@ -168,9 +168,9 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			pool.DeployBlockNum = log.BlockNumber
 			pool.CurrentBlockNum = log.BlockNumber
 			pm.dirtyPools[pool.PoolAddress] = pool
-			pm.pools[log.Address] = pool
+			pm.Pools[log.Address] = pool
 		} else if topic0 == pm.MintID {
-			if pool, ok := pm.pools[log.Address]; !ok {
+			if pool, ok := pm.Pools[log.Address]; !ok {
 				//logrus.Warnf("mint before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
@@ -190,7 +190,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 				pm.dirtyPools[pool.PoolAddress] = pool
 			}
 		} else if topic0 == pm.BurnID {
-			if pool, ok := pm.pools[log.Address]; !ok {
+			if pool, ok := pm.Pools[log.Address]; !ok {
 				//logrus.Warnf("burn before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
@@ -210,7 +210,7 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 				pm.dirtyPools[pool.PoolAddress] = pool
 			}
 		} else if topic0 == pm.SwapID {
-			if pool, ok := pm.pools[log.Address]; !ok {
+			if pool, ok := pm.Pools[log.Address]; !ok {
 				//logrus.Warnf("swap before initialize, tx: %s, pool: %s", log.TxHash, log.Address)
 				continue
 			} else {
@@ -368,7 +368,7 @@ func (pm *Simulator) Init() error {
 }
 
 func (pm *Simulator) ForkPool(poolAddress common.Address) (*CorePool, error) {
-	if pool, ok := pm.pools[poolAddress]; !ok {
+	if pool, ok := pm.Pools[poolAddress]; !ok {
 		return nil, fmt.Errorf("pool not exists %s", poolAddress)
 	} else {
 		//currentBlockNum := pm.CurrentBlock()
