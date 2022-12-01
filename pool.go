@@ -408,8 +408,9 @@ func (p *CorePool) ResolveInputFromSwapResultEvent(param *UniV3SwapEvent) (decim
 		}
 	}
 
-	logrus.Fatal("failed find swap solution", param.RawEvent.TxHash, param.RawEvent.Address)
-	return ZERO, nil, nil
+	err := fmt.Errorf("failed find swap solution %s %s", param.RawEvent.TxHash, param.RawEvent.Address)
+	logrus.Error(err)
+	return ZERO, nil, err
 }
 
 func (p *CorePool) checkTicks(tickLower, tickUpper int) error {

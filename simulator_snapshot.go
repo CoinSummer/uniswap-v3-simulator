@@ -1,6 +1,7 @@
 package uniswap_v3_simulator
 
 import (
+	"encoding/json"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
@@ -94,11 +95,11 @@ func (s *SimulatorFork) HandleLogs(logs []types.Log) error {
 					logrus.Warnf("failed parse swap event, tx: %s  pool: %s", log.TxHash, log.Address)
 					continue
 				}
-				//s, _ := json.Marshal(swap)
-				//logrus.Infof("swap: %s %s %s", log.Address, log.TxHash, string(s))
 				amountSpecified, sqrtPriceX96, err := pool.ResolveInputFromSwapResultEvent(swap)
 				if err != nil {
-					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
+					s, _ := json.Marshal(swap)
+					logrus.Infof("swap: %s %s %s", log.Address, log.TxHash, string(s))
+					return err
 				}
 
 				_, _, _, err = pool.HandleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
