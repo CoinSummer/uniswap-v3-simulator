@@ -35,6 +35,7 @@ var (
 
 type Simulator struct {
 	lock         sync.Mutex
+	currentBlock uint64
 	pools        map[common.Address]*CorePool
 	dirtyPools   map[string]*CorePool
 	Abi          abi.ABI
@@ -247,7 +248,11 @@ func (pm *Simulator) MaxSyncedBlockNum() (uint64, error) {
 	if lastBlock == nil {
 		return 0, nil
 	}
-	return *lastBlock, nil
+	if *lastBlock > pm.currentBlock {
+		return *lastBlock, nil
+	} else {
+		return pm.currentBlock, nil
+	}
 }
 
 func (pm *Simulator) FlushPools() error {
@@ -341,7 +346,7 @@ func (pm *Simulator) SyncBlocks(to uint64, step uint64) (uint64, error) {
 			}
 		}
 		start = minEnd + 1
-
+		pm.currentBlock = minEnd
 	}
 
 }
