@@ -350,13 +350,13 @@ func (pm *Simulator) SyncBlocks(to uint64, step uint64) (uint64, error) {
 
 }
 
-func (pm *Simulator) SyncTo(blockNum uint64) (uint64, error) {
-	return pm.SyncBlocks(blockNum, 10000)
+func (pm *Simulator) SyncTo(blockNum uint64, step uint64) (uint64, error) {
+	return pm.SyncBlocks(blockNum, step)
 }
 
 // 同步历史区块到latest并持久化
-func (pm *Simulator) Init() error {
-	_, err := pm.SyncBlocks(0, 10000)
+func (pm *Simulator) Init(step uint64) error {
+	_, err := pm.SyncBlocks(0, step)
 	if err != nil {
 		return err
 	}
