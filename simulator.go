@@ -151,6 +151,9 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 		if log.Address == skipAddress[0] || log.Address == skipAddress[1] || log.Address == skipAddress[2] {
 			continue
 		}
+		if len(log.Topics) == 0 {
+			return nil
+		}
 		topic0 := log.Topics[0]
 		if topic0 == pm.InitializeID {
 			if _, exist := pm.Pools[log.Address]; exist {
