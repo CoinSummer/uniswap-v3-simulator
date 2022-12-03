@@ -158,8 +158,9 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 			}
 			pool, err := pm.NewPool(&log)
 			if err != nil {
-				logrus.Error(err)
-				if err.Error() == "execution reverted" {
+				logrus.Warnf("failed initialize pool: %s", err)
+				// reverted 就是不规范合约， 忽略
+				if strings.Contains(err.Error(), "reverted") {
 					continue
 				} else {
 					logrus.Fatal(err)
