@@ -107,7 +107,8 @@ func (s *SimulatorFork) HandleLogs(logs []types.Log) error {
 
 				_, _, _, err = pool.HandleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
 				if err != nil {
-					logrus.Fatalf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
+					logrus.Errorf("failed execute swap event, %s tx: %s  pool: %s", err, log.TxHash, log.Address)
+					return err
 				}
 				pool.CurrentBlockNum = log.BlockNumber
 			}
