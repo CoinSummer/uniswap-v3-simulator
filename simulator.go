@@ -30,7 +30,7 @@ var (
 )
 
 var (
-	skipAddress = []common.Address{common.HexToAddress("0xa87998484c19d68807debdc280e18424d55743a9"), common.HexToAddress("0xcba27c8e7115b4eb50aa14999bc0866674a96ecb"), common.HexToAddress("0x979f63b8279376ef8205fb536b16080cd1d45058")}
+	skipAddress = []common.Address{common.HexToAddress("0xAE085446Dd8e7545072dFf82429A866b75AD776d"), common.HexToAddress("0xa87998484c19d68807debdc280e18424d55743a9"), common.HexToAddress("0xcba27c8e7115b4eb50aa14999bc0866674a96ecb"), common.HexToAddress("0x979f63b8279376ef8205fb536b16080cd1d45058")}
 )
 
 type Simulator struct {
