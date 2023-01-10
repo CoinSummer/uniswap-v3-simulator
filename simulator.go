@@ -227,7 +227,10 @@ func (pm *Simulator) HandleLogs(logs []types.Log) error {
 				//logrus.Infof("swap: %s %s %s", log.Address, log.TxHash, string(s))
 				amountSpecified, sqrtPriceX96, err := pool.ResolveInputFromSwapResultEvent(swap)
 				if err != nil {
-					logrus.Fatalf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
+					skipAddress = append(skipAddress, log.Address)
+					logrus.Errorf("failed resolve swap param from event, tx: %s  pool: %s, %s", log.TxHash, log.Address, err)
+					logrus.Infof("new skipped pool: %s, current skipped pools: %s", log.Address, skipAddress)
+					continue
 				}
 
 				_, _, _, err = pool.HandleSwap(swap.Amount0.IsPositive(), amountSpecified, sqrtPriceX96, false)
