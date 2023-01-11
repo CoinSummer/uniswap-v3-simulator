@@ -148,10 +148,15 @@ func (pm *Simulator) NewPool(log *types.Log) (*CorePool, error) {
 func (pm *Simulator) HandleLogs(logs []types.Log) error {
 	// 有变更的pool
 	for _, log := range logs {
+		skip := false
 		for _, address := range skipAddress {
 			if log.Address == address {
-				continue
+				skip = true
 			}
+		}
+
+		if skip {
+			continue
 		}
 
 		if len(log.Topics) == 0 {

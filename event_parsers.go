@@ -87,10 +87,10 @@ func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 		SqrtPriceX96: decimal.NewFromBigInt(sqrtPriceX96, 0),
 		Liquidity:    decimal.NewFromBigInt(liquidity, 0),
 	}
-	// 看看xiaxin怎么做的。
-	if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() && parsed.Liquidity.IsZero() {
-		return nil, fmt.Errorf("swap amoun is 0: %s", log.TxHash)
-	}
+	// swap 逻辑来处理
+	//if parsed.Amount0.IsZero() && parsed.Amount1.IsZero() && parsed.Liquidity.IsZero() {
+	//	return nil, fmt.Errorf("swap amoun is 0: %s", log.TxHash)
+	//}
 	return parsed, nil
 }
 func parseUniv3MintEvent(log *types.Log) (*UniV3MintEvent, error) {
