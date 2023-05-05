@@ -35,7 +35,8 @@ var (
 
 type Simulator struct {
 	lock         sync.Mutex
-	currentBlock uint64
+	startBlock   uint64 // 起始区块
+	currentBlock uint64 // 当前同步到
 	Pools        map[common.Address]*CorePool
 	dirtyPools   map[string]*CorePool
 	Abi          abi.ABI
@@ -49,7 +50,7 @@ type Simulator struct {
 	ctx          context.Context
 }
 
-func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
+func NewPoolManager(dbFile string, rpcUrl string, startBlock uint64) *Simulator {
 	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{
 		Logger: logger.New(
 			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
@@ -66,6 +67,7 @@ func NewPoolManager(dbFile string, rpcUrl string) *Simulator {
 		logrus.Fatal(err)
 	}
 	pm := &Simulator{
+		startBlock: startBlock,
 		Pools:      map[common.Address]*CorePool{},
 		dirtyPools: map[string]*CorePool{},
 		rpc:        rpc,
@@ -302,7 +304,7 @@ func (pm *Simulator) SyncBlocks(to uint64, step uint64) (uint64, error) {
 	}
 	if lastBlock == 0 {
 		// univ3 factory deploy
-		lastBlock = 12369620
+		lastBlock = pm.startBlock
 	}
 	start := lastBlock + 1
 	var end uint64

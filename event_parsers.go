@@ -60,26 +60,40 @@ func parseUniv3SwapEvent(log *types.Log) (*UniV3SwapEvent, error) {
 	if len(event.Topics) != 3 {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 3, len(event.Topics))
 	}
-	amount0, ok := abi.ReadInteger(int256, data[0:32]).(*big.Int)
+	amount0Raw, err := abi.ReadInteger(int256, data[0:32])
+	if err != nil {
+		return nil, err
+	}
+	amount0, ok := amount0Raw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("parse swap err amount0 not a int")
 	}
 
-	amount1, ok := abi.ReadInteger(int256, data[32:32*2]).(*big.Int)
+	amount1Raw, err := abi.ReadInteger(int256, data[32:32*2])
+	if err != nil {
+		return nil, err
+	}
+	amount1, ok := amount1Raw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("parse swap err amount1 not a int")
 	}
-	price := abi.ReadInteger(uint160, data[32*2:32*3])
-	liq := abi.ReadInteger(uint128, data[32*3:32*4])
-	sqrtPriceX96, ok := price.(*big.Int)
+	priceRaw, err := abi.ReadInteger(uint160, data[32*2:32*3])
+	if err != nil {
+		return nil, err
+	}
+	liqRaw, err := abi.ReadInteger(uint128, data[32*3:32*4])
+	if err != nil {
+		return nil, err
+	}
+
+	sqrtPriceX96, ok := priceRaw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("parse swap err sqrtPriceX96 not a int")
 	}
-	liquidity, ok := liq.(*big.Int)
+	liquidity, ok := liqRaw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("parse swap err Liquidity not a int")
 	}
-
 	parsed := &UniV3SwapEvent{
 		RawEvent:     log,
 		Amount0:      decimal.NewFromBigInt(amount0, 0),
@@ -99,14 +113,24 @@ func parseUniv3MintEvent(log *types.Log) (*UniV3MintEvent, error) {
 	if len(event.Topics) != 4 {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 4, len(event.Topics))
 	}
-	tickLower, ok := abi.ReadInteger(int24, event.Topics[2].Bytes()).(*big.Int)
+	tickLowerRaw, err := abi.ReadInteger(int24, event.Topics[2].Bytes())
+	if err != nil {
+		return nil, err
+	}
+	tickLower, ok := tickLowerRaw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("failed read mint.tick_lower %s, tx: %s", tickLower, event.TxHash)
 	}
-	tickUpper, ok := abi.ReadInteger(int24, event.Topics[3].Bytes()).(*big.Int)
+
+	tickUpperRaw, err := abi.ReadInteger(int24, event.Topics[3].Bytes())
+	if err != nil {
+		return nil, err
+	}
+	tickUpper, ok := tickUpperRaw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("failed read mint.tick_upper %s, tx: %s", tickUpper, event.TxHash)
 	}
+
 	parsed := &UniV3MintEvent{
 		RawEvent:  log,
 		Owner:     hash2Addr(event.Topics[1]),
@@ -128,11 +152,19 @@ func parseUniv3BurnEvent(log *types.Log) (*UniV3BurnEvent, error) {
 	if len(event.Topics) != 4 {
 		return nil, fmt.Errorf("topic not match,expect %d, got %d", 4, len(event.Topics))
 	}
-	tickLower, ok := abi.ReadInteger(int24, event.Topics[2].Bytes()).(*big.Int)
+	tickLowerRaw, err := abi.ReadInteger(int24, event.Topics[2].Bytes())
+	if err != nil {
+		return nil, err
+	}
+	tickLower, ok := tickLowerRaw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("failed read mint.tick_lower %s, tx: %s", tickLower, event.TxHash)
 	}
-	tickUpper, ok := abi.ReadInteger(int24, event.Topics[3].Bytes()).(*big.Int)
+	tickUpperRaw, err := abi.ReadInteger(int24, event.Topics[3].Bytes())
+	if err != nil {
+		return nil, err
+	}
+	tickUpper, ok := tickUpperRaw.(*big.Int)
 	if !ok {
 		return nil, fmt.Errorf("failed read mint.tick_upper %s, tx: %s", tickUpper, event.TxHash)
 	}
