@@ -1,6 +1,9 @@
 package uniswap_v3_simulator
 
-import "github.com/shopspring/decimal"
+import (
+	"github.com/shopspring/decimal"
+	"math/big"
+)
 
 func GetAmount1Delta(
 	sqrtRatioAX96 decimal.Decimal,
@@ -92,4 +95,16 @@ func GetAmount0DeltaWithRoundUp(
 		return numerator1.Mul(numerator2).Div(sqrtRatioBX96).RoundDown(0).Div(sqrtRatioAX96).RoundDown(0), nil
 	}
 
+}
+
+func SqrtRatioX962Price(sqrtRatioX96 *big.Int, price *big.Int) *big.Int {
+	squared := new(big.Int).Mul(sqrtRatioX96, sqrtRatioX96)
+
+	multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	squared = squared.Mul(squared, multiplier)
+	result := squared.Mul(squared, price)
+
+	divisor := new(big.Int).Exp(big.NewInt(2), big.NewInt(192), nil)
+	result = result.Div(result, divisor)
+	return result
 }
