@@ -1,8 +1,10 @@
 package uniswap_v3_simulator
 
 import (
+	"fmt"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"strconv"
 )
 
 func GetAmount1Delta(
@@ -97,14 +99,64 @@ func GetAmount0DeltaWithRoundUp(
 
 }
 
-func SqrtRatioX962Price(sqrtRatioX96 *big.Int, price *big.Int) *big.Int {
+func SqrtRatioX962HumanPrice(sqrtRatioX96, price *big.Int, decimals0, decimals1 int) float64 {
 	squared := new(big.Int).Mul(sqrtRatioX96, sqrtRatioX96)
+	multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals0)), nil)
+	squared.Mul(squared, multiplier)
+	result := new(big.Int).Mul(squared, price)
 
-	multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
-	squared = squared.Mul(squared, multiplier)
-	result := squared.Mul(squared, price)
+	divisor := new(big.Int).Lsh(big.NewInt(1), 192)
+	result.Div(result, divisor)
 
-	divisor := new(big.Int).Exp(big.NewInt(2), big.NewInt(192), nil)
-	result = result.Div(result, divisor)
-	return result
+	tenToTheDecimals := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals1)), nil)
+	quotient, remainder := new(big.Int).QuoRem(result, tenToTheDecimals, new(big.Int))
+
+	intPart, _ := strconv.ParseFloat(quotient.String(), 64)
+	remainderPart, _ := strconv.ParseFloat(remainder.String(), 64)
+	decimalPart := remainderPart / float64(tenToTheDecimals.Int64())
+
+	return intPart + decimalPart
+}
+
+func HumanPrice2SqrtRatioX96(price float64, decimals0, decimals1 int) (*big.Int, error) {
+	twoTo192 := new(big.Int).Exp(big.NewInt(2), big.NewInt(192), nil)
+	twoToDecimals0 := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals0)), nil)
+	twoToDecimals1 := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals1)), nil)
+
+	valueBigFloat := big.NewFloat(price)
+	result := new(big.Int)
+	valueBigFloat.Mul(valueBigFloat, new(big.Float).SetInt(twoToDecimals1))
+	valueBigFloat.Int(result)
+
+	fmt.Printf("%v\n", valueBigFloat.String())
+	fmt.Printf("%v\n", result.String())
+
+	numerator := new(big.Int).Mul(result, twoTo192)
+	denominator := new(big.Int).Mul(twoToDecimals0, big.NewInt(1))
+	divResult := new(big.Int).Div(numerator, denominator)
+
+	return sqrt(divResult)
+}
+
+func sqrt(value *big.Int) (*big.Int, error) {
+	if value.Sign() < 0 {
+		return nil, fmt.Errorf("square root of negative numbers is not supported")
+	}
+
+	if value.Cmp(big.NewInt(1)) < 0 {
+		return value, nil
+	}
+
+	return newtonIteration(value, big.NewInt(1)), nil
+}
+
+func newtonIteration(n, x0 *big.Int) *big.Int {
+	// x1 = (n / x0 + x0) / 2
+	div := new(big.Int).Div(n, x0)
+	x1 := new(big.Int).Rsh(div.Add(div, x0), 1)
+
+	if x0.Cmp(x1) == 0 || x0.Cmp(new(big.Int).Sub(x1, big.NewInt(1))) == 0 {
+		return x0
+	}
+	return newtonIteration(n, x1)
 }
