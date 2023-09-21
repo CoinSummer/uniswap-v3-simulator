@@ -173,20 +173,6 @@ func TestCorePool_computeSwapStep_TargetPriceOf1UsesPartialInputAmount(t *testin
 	assert.Equal(t, sqrtQ.String(), "1")
 }
 
-//     it('entire input amount taken as fee', async () => {
-//      const { amountIn, amountOut, sqrtQ, feeAmount } = await swapMath.computeSwapStep(
-//        '2413',
-//        '79887613182836312',
-//        '1985041575832132834610021537970',
-//        '10',
-//        1872
-//      )
-//      expect(amountIn).to.eq('0')
-//      expect(feeAmount).to.eq('10')
-//      expect(amountOut).to.eq('0')
-//      expect(sqrtQ).to.eq('2413')
-//    })
-
 func TestCorePool_computeSwapStep_EntireInputAmountTakenAsFee(t *testing.T) {
 	liquidity, _ := new(big.Int).SetString("1985041575832132834610021537970", 10)
 	sqrtQ, amountIn, amountOut, feeAmount, _ := utils.ComputeSwapStep(
